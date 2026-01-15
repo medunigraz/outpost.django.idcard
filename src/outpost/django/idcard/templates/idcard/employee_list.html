@@ -1,0 +1,36 @@
+{% extends "idcard/base.html" %}
+
+{% block title %}Employee List{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Employee ID Cards</h2>
+    <p>Total employees: {{ employees.count }}</p>
+</div>
+
+{% if employees %}
+    {% for employee in employees %}
+    <div class="card">
+        <h3>{{ employee.full_name }}</h3>
+        <p><strong>Employee ID:</strong> {{ employee.employee_id }}</p>
+        
+        {% if employee.organizational_unit %}
+        <p><strong>Organizational Unit:</strong> {{ employee.organizational_unit }}</p>
+        {% endif %}
+        
+        {% if employee.visitenkarte_url %}
+        <p><strong>Visitenkarte:</strong> <a href="{{ employee.visitenkarte_url }}" target="_blank">View Business Card</a></p>
+        {% endif %}
+        
+        <div style="margin-top: 15px;">
+            <a href="{% url 'idcard:employee_detail' employee.employee_id %}" class="btn">View Details</a>
+            <a href="{% url 'idcard:generate_qr' employee.employee_id %}" class="btn btn-secondary" target="_blank">QR Code</a>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="card">
+        <p>No employees found. Add some in the <a href="/admin/">admin panel</a>.</p>
+    </div>
+{% endif %}
+{% endblock %}
