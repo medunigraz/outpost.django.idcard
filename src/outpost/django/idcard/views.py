@@ -89,16 +89,9 @@ def generate_qr_code(request, employee_id):
 def generate_apple_pass(request, employee_id):
     """
     Generate Apple Wallet pass for employee
-    TODO: Implement actual pass generation
     """
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
-    
-    # For now, return a JSON response indicating this is not yet implemented
-    return JsonResponse({
-        'status': 'not_implemented',
-        'message': 'Apple Wallet pass generation coming soon',
-        'employee': employee.full_name
-    })
+    from .apple_pass import apple_pass_download
+    return apple_pass_download(request, employee_id)
 
 
 @login_required

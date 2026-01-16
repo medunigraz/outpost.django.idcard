@@ -55,3 +55,9 @@ htmlcov/
 manage.py
 settings.py
 urls.py
+
+# Certificates
+certificates/
+*.pem
+*.p12
+*.cer
