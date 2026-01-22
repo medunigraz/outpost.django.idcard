@@ -1,5 +1,5 @@
 """
-Views for Digital ID Cards
+Views for Digital ID Cards with Google Wallet support
 """
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
@@ -44,6 +44,7 @@ def employee_card_json(request, employee_id):
         'full_name': employee.full_name,
         'first_name': employee.first_name,
         'last_name': employee.last_name,
+        'email': employee.email,
         'organizational_unit': employee.organizational_unit,
         'visitenkarte_url': employee.visitenkarte_url,
         'photo_url': employee.photo.url if employee.photo else None,
@@ -98,13 +99,6 @@ def generate_apple_pass(request, employee_id):
 def generate_google_pass(request, employee_id):
     """
     Generate Google Wallet pass for employee
-    TODO: Implement actual pass generation
     """
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
-    
-    # For now, return a JSON response indicating this is not yet implemented
-    return JsonResponse({
-        'status': 'not_implemented',
-        'message': 'Google Wallet pass generation coming soon',
-        'employee': employee.full_name
-    })
+    from .google_pass import google_pass_download
+    return google_pass_download(request, employee_id)

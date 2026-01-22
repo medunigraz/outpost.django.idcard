@@ -13,6 +13,11 @@ class EmployeeCard(models.Model):
     employee_id = models.IntegerField(unique=True, help_text="Unique employee ID number")
     first_name = models.CharField(max_length=200)
     last_name = models.CharField(max_length=200)
+    email = models.EmailField(
+        max_length=254,
+        blank=True,
+        help_text="Employee email address"
+    )
     
     # Organizational information
     organizational_unit = models.CharField(
