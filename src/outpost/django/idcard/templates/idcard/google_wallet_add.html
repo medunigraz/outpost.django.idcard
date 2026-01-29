@@ -1,0 +1,104 @@
+{% extends "idcard/base.html" %}
+
+{% block title %}Add to Google Wallet - {{ employee.full_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <a href="{% url 'idcard:employee_detail' employee.employee_id %}" class="btn btn-secondary">← Back to Employee</a>
+</div>
+
+<div class="card">
+    <h2>📱 Add to Google Wallet</h2>
+    <h3>{{ employee.full_name }}</h3>
+    
+    <div style="margin: 30px 0; text-align: center;">
+        <div style="background: #f5f5f5; padding: 30px; border-radius: 8px; display: inline-block; min-width: 300px;">
+            {% if employee.photo %}
+            <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" 
+                 style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 20px;">
+            {% endif %}
+            
+            <div style="margin: 20px 0;">
+                <h4 style="margin: 0;">{{ employee.full_name }}</h4>
+                <p style="color: #666; margin: 5px 0;">Employee ID: {{ employee.employee_id }}</p>
+                {% if employee.organizational_unit %}
+                <p style="color: #666; margin: 5px 0; font-size: 14px;">{{ employee.organizational_unit }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ save_url }}" 
+           class="btn" 
+           style="font-size: 18px; padding: 15px 30px; background: #4285f4; display: inline-flex; align-items: center; gap: 10px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                <path d="M21,18V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V6H12C10.89,6 10,6.9 10,8V16A2,2 0 0,0 12,18M12,16H22V8H12M16,13.5A1.5,1.5 0 0,1 14.5,12A1.5,1.5 0 0,1 16,10.5A1.5,1.5 0 0,1 17.5,12A1.5,1.5 0 0,1 16,13.5Z" />
+            </svg>
+            Add to Google Wallet
+        </a>
+    </div>
+    
+    <div style="background: #f0f7ff; padding: 20px; border-radius: 8px; margin-top: 20px;">
+        <h4 style="margin-top: 0;">ℹ️ How it works</h4>
+        <ol style="margin-left: 20px;">
+            <li>Click the "Add to Google Wallet" button above</li>
+            <li>Sign in with your Google account (if needed)</li>
+            <li>The pass will be added to your Google Wallet app</li>
+            <li>Access it anytime from your Android phone or Google Wallet app</li>
+        </ol>
+        
+        <p style="margin-bottom: 0; color: #666; font-size: 14px;">
+            <strong>Note:</strong> Google Wallet works on Android phones and can be accessed at 
+            <a href="https://pay.google.com/gp/w/home/wallet" target="_blank">pay.google.com</a>
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Pass Details</h3>
+    <table style="width: 100%;">
+        <tr>
+            <td style="padding: 10px; background: #f9f9f9;"><strong>Name:</strong></td>
+            <td style="padding: 10px;">{{ employee.full_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; background: #f9f9f9;"><strong>Employee ID:</strong></td>
+            <td style="padding: 10px;">{{ employee.employee_id }}</td>
+        </tr>
+        {% if employee.organizational_unit %}
+        <tr>
+            <td style="padding: 10px; background: #f9f9f9;"><strong>Organizational Unit:</strong></td>
+            <td style="padding: 10px;">{{ employee.organizational_unit }}</td>
+        </tr>
+        {% endif %}
+        {% if employee.email %}
+        <tr>
+            <td style="padding: 10px; background: #f9f9f9;"><strong>Email:</strong></td>
+            <td style="padding: 10px;">{{ employee.email }}</td>
+        </tr>
+        {% endif %}
+        {% if employee.visitenkarte_url %}
+        <tr>
+            <td style="padding: 10px; background: #f9f9f9;"><strong>Business Card:</strong></td>
+            <td style="padding: 10px;"><a href="{{ employee.visitenkarte_url }}" target="_blank">View Visitenkarte</a></td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td style="padding: 10px; background: #f9f9f9;"><strong>Pass ID:</strong></td>
+            <td style="padding: 10px; font-family: monospace; font-size: 12px;">{{ employee.google_pass_id }}</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card" style="background: #fff3cd; border: 1px solid #ffecb5;">
+    <h3>⚠️ Development Note</h3>
+    <p>This is working in development mode, but Google Wallet requires HTTPS URLs for full functionality.</p>
+    <p><strong>Limitations without HTTPS:</strong></p>
+    <ul>
+        <li>Employee photos may not display correctly (needs full HTTPS URL)</li>
+        <li>Some features may not work on mobile devices</li>
+    </ul>
+    <p><strong>Once deployed to staging/production with HTTPS, everything will work perfectly!</strong></p>
+</div>
+{% endblock %}
