@@ -56,8 +56,9 @@ manage.py
 settings.py
 urls.py
 
-# Certificates
-certificates/
+# Credentials
+credentials/
 *.pem
 *.p12
 *.cer
+*.json

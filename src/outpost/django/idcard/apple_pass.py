@@ -75,7 +75,6 @@ def generate_pass_json(employee):
             "messageEncoding": "iso-8859-1"
         }
         
-        # iOS 9+ supports barcodes array
         pass_data["barcodes"] = [{
             "message": employee.visitenkarte_url,
             "format": "PKBarcodeFormatQR",
@@ -94,9 +93,15 @@ def create_manifest(files_dict):
     return json.dumps(manifest, indent=2).encode('utf-8')
 
 
-def sign_manifest(manifest_json, cert_path, key_path, wwdr_path, password):
+def sign_manifest(manifest_json):
     """Sign manifest using OpenSSL to create PKCS7 signature"""
     try:
+        # Use paths from settings
+        cert_path = str(settings.APPLE_PASS_CERT_PATH)
+        key_path = str(settings.APPLE_PASS_KEY_PATH)
+        wwdr_path = str(settings.APPLE_WWDR_PATH)
+        password = settings.APPLE_PASS_CERTIFICATE_PASSWORD
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix='.json') as f:
             manifest_file = f.name
             f.write(manifest_json)
@@ -204,12 +209,7 @@ def generate_apple_pass(employee_id, include_signature=True):
     signature = None
     if include_signature:
         try:
-            cert_path = os.path.join(settings.BASE_DIR, 'certificates', 'pass_certificate.pem')
-            key_path = os.path.join(settings.BASE_DIR, 'certificates', 'pass_key.pem')
-            wwdr_path = os.path.join(settings.BASE_DIR, 'certificates', 'wwdr.pem')
-            password = getattr(settings, 'APPLE_PASS_CERTIFICATE_PASSWORD', '')
-            
-            signature = sign_manifest(manifest_json, cert_path, key_path, wwdr_path, password)
+            signature = sign_manifest(manifest_json)
         except Exception as e:
             raise Exception(f"Failed to sign pass: {str(e)}")
     
@@ -247,7 +247,7 @@ def apple_pass_download(request, employee_id):
             f"<ul>"
             f"<li>APPLE_TEAM_ID is set in settings.py</li>"
             f"<li>APPLE_PASS_TYPE_ID is set in settings.py</li>"
-            f"<li>Certificate files exist in certificates/ directory</li>"
+            f"<li>Certificate files exist in credentials/ directory</li>"
             f"<li>Certificate password is correct</li>"
             f"</ul>",
             status=500

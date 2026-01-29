@@ -7,14 +7,11 @@ from django.contrib.auth.decorators import login_required
 from .models import EmployeeCard
 import qrcode
 from io import BytesIO
-import json
 
 
 @login_required
 def employee_list(request):
-    """
-    List all employees with ID cards
-    """
+    """List all employees with ID cards"""
     employees = EmployeeCard.objects.all()
     return render(request, 'idcard/employee_list.html', {
         'employees': employees
@@ -23,9 +20,7 @@ def employee_list(request):
 
 @login_required
 def employee_detail(request, employee_id):
-    """
-    View details for a specific employee ID card
-    """
+    """View details for a specific employee ID card"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     return render(request, 'idcard/employee_detail.html', {
         'employee': employee
@@ -34,9 +29,7 @@ def employee_detail(request, employee_id):
 
 @login_required
 def employee_card_json(request, employee_id):
-    """
-    Return employee card data as JSON (for API access)
-    """
+    """Return employee card data as JSON (for API access)"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     
     data = {
@@ -56,16 +49,12 @@ def employee_card_json(request, employee_id):
 
 
 def generate_qr_code(request, employee_id):
-    """
-    Generate QR code for employee's Visitenkarte URL
-    Returns the QR code as a PNG image
-    """
+    """Generate QR code for employee's Visitenkarte URL"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     
     if not employee.visitenkarte_url:
         return HttpResponse("No Visitenkarte URL configured", status=400)
     
-    # Generate QR code
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -75,10 +64,8 @@ def generate_qr_code(request, employee_id):
     qr.add_data(employee.visitenkarte_url)
     qr.make(fit=True)
     
-    # Create image
     img = qr.make_image(fill_color="black", back_color="white")
     
-    # Save to bytes buffer
     buffer = BytesIO()
     img.save(buffer, format='PNG')
     buffer.seek(0)
@@ -88,17 +75,22 @@ def generate_qr_code(request, employee_id):
 
 @login_required
 def generate_apple_pass(request, employee_id):
-    """
-    Generate Apple Wallet pass for employee
-    """
+    """Generate Apple Wallet pass for employee"""
     from .apple_pass import apple_pass_download
     return apple_pass_download(request, employee_id)
 
 
 @login_required
+def apple_pass_preview(request, employee_id):
+    """Preview page before downloading Apple Wallet pass"""
+    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+    return render(request, 'idcard/apple_pass_preview.html', {
+        'employee': employee
+    })
+
+
+@login_required
 def generate_google_pass(request, employee_id):
-    """
-    Generate Google Wallet pass for employee
-    """
+    """Generate Google Wallet pass for employee"""
     from .google_pass import google_pass_download
     return google_pass_download(request, employee_id)

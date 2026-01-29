@@ -1,0 +1,120 @@
+{% extends "idcard/base.html" %}
+
+{% block title %}My Employee ID Card{% endblock %}
+
+{% block header %}My Employee ID Card{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Welcome, {{ person.first_name }} {{ person.last_name }}</h2>
+    
+    <div style="display: flex; gap: 30px; flex-wrap: wrap; margin-top: 20px;">
+        <!-- Left: Photo and basic info -->
+        <div style="flex: 1; min-width: 250px;">
+            {% if person.avatar %}
+            <img src="{{ person.avatar }}" alt="Your photo" 
+                 style="width: 150px; height: 150px; border-radius: 8px; object-fit: cover; border: 3px solid #007c31;">
+            {% else %}
+            <div style="width: 150px; height: 150px; background: #f0f0f0; border-radius: 8px; 
+                        display: flex; align-items: center; justify-content: center; color: #999;">
+                No photo
+            </div>
+            {% endif %}
+            
+            <table style="margin-top: 15px; width: 100%;">
+                {% if person.title %}
+                <tr>
+                    <td style="padding: 5px 10px 5px 0; color: #666;">Title:</td>
+                    <td>{{ person.title }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td style="padding: 5px 10px 5px 0; color: #666;">Email:</td>
+                    <td>{{ person.email }}</td>
+                </tr>
+                {% if person.phone %}
+                <tr>
+                    <td style="padding: 5px 10px 5px 0; color: #666;">Phone:</td>
+                    <td>{{ person.phone }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+        
+        <!-- Right: Organization info -->
+        <div style="flex: 2; min-width: 300px;">
+            <h4 style="margin: 0 0 10px 0; color: #007c31;">Organizational Units</h4>
+            {% if organizations %}
+            <ul style="margin: 0; padding-left: 20px;">
+                {% for org in organizations %}
+                <li style="margin-bottom: 5px;">{{ org.name }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: #999;">No organizational units assigned</p>
+            {% endif %}
+            
+            {% if person.card %}
+            <div style="margin-top: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #007c31;">Business Card (Visitenkarte)</h4>
+                <a href="{{ person.card }}" target="_blank" style="color: #003366;">{{ person.card }}</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card" style="background: linear-gradient(135deg, #007c31 0%, #10a53c 100%); color: white;">
+    <h3 style="margin-top: 0;">Get Your Digital ID Card</h3>
+    
+    <p>Add your MedUni employee ID to your phone's wallet app for easy access:</p>
+    
+    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 20px;">
+        <a href="{% url 'idcard:generate_my_pass' %}" class="btn" 
+           style="background: white; color: #007c31; font-weight: bold;">
+            📱 Download Apple Wallet Pass
+        </a>
+        
+        {% if card_exists %}
+        <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="btn"
+           style="background: white; color: #007c31; font-weight: bold;">
+            📱 Add to Google Wallet
+        </a>
+        {% endif %}
+    </div>
+    
+    <p style="margin-top: 15px; font-size: 14px; opacity: 0.9;">
+        Your ID card includes your photo, name, and a QR code linking to your business card.
+    </p>
+</div>
+
+{% if card_exists and employee_card %}
+<div class="card">
+    <h3>Your Existing ID Card</h3>
+    <p>An ID card has already been generated for you.</p>
+    <table style="width: 100%;">
+        <tr>
+            <td style="padding: 5px 10px; background: #f9f9f9; width: 150px;"><strong>Created:</strong></td>
+            <td style="padding: 5px 10px;">{{ employee_card.created_at|date:"d.m.Y H:i" }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px 10px; background: #f9f9f9;"><strong>Last Updated:</strong></td>
+            <td style="padding: 5px 10px;">{{ employee_card.updated_at|date:"d.m.Y H:i" }}</td>
+        </tr>
+    </table>
+    <p style="margin-top: 15px; color: #666; font-size: 14px;">
+        Downloading a new pass will update your existing card with the latest information.
+    </p>
+</div>
+{% endif %}
+
+<div class="card" style="background: #f8f9fa;">
+    <h4 style="margin-top: 0;">ℹ️ About Digital ID Cards</h4>
+    <ul style="margin: 0; padding-left: 20px; color: #555;">
+        <li>Your digital ID card is for soft identification purposes (e.g., bakery discounts)</li>
+        <li>The QR code links to your official business card (Visitenkarte)</li>
+        <li>Your photo and information are pulled from CAMPUSonline</li>
+        <li>Updates to your CAMPUSonline profile will be reflected when you download a new pass</li>
+    </ul>
+</div>
+{% endblock %}
