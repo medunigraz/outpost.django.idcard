@@ -7,11 +7,14 @@ First-time authentication required, then fully automated.
 import json
 import uuid
 import os
+import logging
 from datetime import datetime
 from django.conf import settings
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse, HttpResponseRedirect
 from .models import EmployeeCard
+
+logger = logging.getLogger(__name__)
 
 try:
     from google.auth.transport.requests import Request
@@ -36,14 +39,14 @@ def get_authenticated_credentials():
         try:
             creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
         except Exception as e:
-            print(f"Error loading token: {e}")
+            logger.error(f"Error loading Google Wallet token: {e}")
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
             except Exception as e:
-                print(f"Token refresh failed: {e}")
+                logger.error(f"Google Wallet token refresh failed: {e}")
                 creds = None
         
         if not creds:
@@ -118,11 +121,11 @@ def create_or_update_pass_class():
         if response.status_code in [200, 201]:
             return class_id
         else:
-            print(f"Pass class creation warning: {response.status_code} - {response.text}")
+            logger.warning(f"Pass class creation warning: {response.status_code} - {response.text}")
             return class_id
-            
+
     except Exception as e:
-        print(f"Error creating pass class: {e}")
+        logger.error(f"Error creating Google Wallet pass class: {e}")
         return class_id
 
 
@@ -225,9 +228,9 @@ def create_or_update_pass_object(employee):
             response = requests.put(url, headers=headers, json=pass_object)
         
         return response.status_code in [200, 201]
-        
+
     except Exception as e:
-        print(f"Error creating/updating pass object: {e}")
+        logger.error(f"Error creating/updating Google Wallet pass object: {e}")
         return False
 
 

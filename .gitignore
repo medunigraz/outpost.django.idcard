@@ -54,7 +54,9 @@ htmlcov/
 # Local development files (not part of the package)
 manage.py
 settings.py
+settings_production.py.example
 urls.py
+DEPLOYMENT.md
 
 # Credentials
 credentials/

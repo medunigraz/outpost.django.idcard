@@ -1,0 +1,33 @@
+{% extends "idcard/base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block header %}Error - Digital ID Cards{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 style="color: #d32f2f; margin-bottom: 20px;">⚠ Error</h2>
+
+    {% if error_message %}
+    <p style="font-size: 16px; margin-bottom: 20px;">
+        {{ error_message }}
+    </p>
+    {% else %}
+    <p style="font-size: 16px; margin-bottom: 20px;">
+        An unexpected error occurred. Please try again later or contact support if the problem persists.
+    </p>
+    {% endif %}
+
+    {% if error_details %}
+    <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin-top: 20px;">
+        <h3 style="margin-bottom: 10px; font-size: 14px; color: #666;">Details:</h3>
+        <pre style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; color: #333;">{{ error_details }}</pre>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 30px;">
+        <a href="{% url 'idcard:employee_list' %}" class="btn">← Back to Employee List</a>
+        <a href="{% url 'idcard:my_pass_preview' %}" class="btn btn-secondary">Try Again</a>
+    </div>
+</div>
+{% endblock %}

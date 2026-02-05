@@ -10,12 +10,15 @@ import zipfile
 import tempfile
 import subprocess
 import os
+import logging
 from io import BytesIO
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from django.conf import settings
 from PIL import Image
 from .models import EmployeeCard
+
+logger = logging.getLogger(__name__)
 
 
 def generate_pass_json(employee):
@@ -200,7 +203,7 @@ def generate_apple_pass(employee_id, include_signature=True):
             img_2x.save(thumb_2x_buffer, format='PNG')
             pass_files['thumbnail@2x.png'] = thumb_2x_buffer.getvalue()
         except Exception as e:
-            print(f"Could not process photo: {e}")
+            logger.error(f"Could not process photo for employee {employee.employee_id}: {e}")
     
     # 5. Manifest
     manifest_json = create_manifest(pass_files)

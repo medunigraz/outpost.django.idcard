@@ -1,0 +1,40 @@
+# Development Dependencies for outpost.django.idcard
+# Install with: pip install -r requirements-dev.txt
+
+# Include production requirements
+-r requirements.txt
+
+# Testing
+pytest>=7.4.0
+pytest-django>=4.5.2
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+
+# Code Quality
+black>=23.7.0                # Code formatter
+flake8>=6.0.0                # Linter
+isort>=5.12.0                # Import sorter
+pylint>=2.17.0               # Static analyzer
+mypy>=1.4.0                  # Type checker
+
+# Django Development Tools
+django-debug-toolbar>=4.1.0  # Debug toolbar for Django
+django-extensions>=3.2.3     # Extra management commands
+ipython>=8.14.0              # Better Python shell
+
+# Documentation
+sphinx>=7.0.0                # Documentation generator
+sphinx-rtd-theme>=1.2.2      # ReadTheDocs theme
+
+# Environment Management
+python-dotenv>=1.0.0         # Load environment variables from .env
+
+# Database Tools (for testing)
+psycopg2-binary>=2.9.6       # PostgreSQL adapter (dev version)
+
+# Security Scanning
+bandit>=1.7.5                # Security linter
+safety>=2.3.5                # Check for known security vulnerabilities
+
+# Coverage Reports
+coverage>=7.2.7              # Code coverage measurement

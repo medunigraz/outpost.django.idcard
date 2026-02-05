@@ -64,8 +64,8 @@
 
 <div class="card">
     <h3>Generate Wallet Passes</h3>
-    <a href="{% url 'idcard:apple_pass' employee.employee_id %}" class="btn">Generate Apple Wallet Pass</a>
-    <a href="{% url 'idcard:google_pass' employee.employee_id %}" class="btn">Generate Google Wallet Pass</a>
-    <p style="margin-top: 10px; color: #666;"><em>Note: Pass generation is not yet implemented</em></p>
+    <p style="margin-bottom: 15px; color: #666;">Download this employee's ID card to your mobile wallet:</p>
+    <a href="{% url 'idcard:apple_pass' employee.employee_id %}" class="btn">📱 Add to Apple Wallet</a>
+    <a href="{% url 'idcard:google_pass' employee.employee_id %}" class="btn">📱 Add to Google Wallet</a>
 </div>
 {% endblock %}
