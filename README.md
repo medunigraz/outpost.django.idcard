@@ -1,60 +1,49 @@
 # outpost.django.idcard
 
-Digital employee ID cards for Medical University of Graz. Generates Apple Wallet and Google Wallet passes with employee information, photos, and QR codes.
+Digital employee ID cards (Apple Wallet + Google Wallet) for the Medical
+University of Graz. Designed to be installed into the wider `outpost` Django
+project; depends on `outpost.django.campusonline` for employee data.
 
-## Installation
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
-```
-
-Access at http://localhost:8000/admin/
-
-## Configuration
-
-### Apple Wallet
-
-Requires certificates from Apple Developer Account:
-- Pass Type ID Certificate (`pass_certificate.pem`)
-- Private Key (`pass_key.pem`)
-- WWDR Certificate (`wwdr.pem`)
-
-Place in `credentials/` directory and configure in settings.
-
-### Google Wallet
-
-1. Create project in [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable Google Wallet API
-3. Create OAuth 2.0 credentials (Desktop app)
-4. Download `google_oauth_client.json` to `credentials/`
-5. Authenticate once:
+## Install
 
 ```bash
-python manage.py shell
->>> from outpost.django.idcard.google_pass import get_authenticated_credentials
->>> get_authenticated_credentials()
+pip install -e .
 ```
 
-## Usage
+Add to `INSTALLED_APPS`. URLs auto-mount at `/idcard/`.
 
-**Manual**: Use Django admin to create employee cards
+## Settings
 
-**SSO**: When deployed with outpost infrastructure, employees can generate passes via CAMPUSonline login at `/idcard/my-pass/`
+```python
+APPLE_PASS_TYPE_ID
+APPLE_TEAM_ID
+APPLE_PASS_CERT_PATH
+APPLE_PASS_KEY_PATH
+APPLE_WWDR_PATH
+APPLE_PASS_CERTIFICATE_PASSWORD
 
-## API Endpoints
+GOOGLE_WALLET_ISSUER_ID
+GOOGLE_OAUTH_CLIENT_FILE
+GOOGLE_WALLET_TOKEN_FILE
+GOOGLE_WALLET_LOGO_URL
+```
 
-- `/idcard/` - List employee cards
-- `/idcard/employee/<id>/` - Card details
-- `/idcard/api/employee/<id>/` - JSON API
-- `/idcard/qr/<id>/` - QR code image
-- `/idcard/apple-pass/<id>/` - Apple Wallet download
-- `/idcard/google-pass/<id>/` - Google Wallet add
+Apple needs a Pass Type ID certificate, key, and the WWDR cert. Google needs an
+OAuth 2.0 Desktop client + Wallet Issuer ID; the token file is created on first
+auth.
+
+## URLs
+
+| Path                          | Purpose                              |
+|-------------------------------|--------------------------------------|
+| `/idcard/`                    | Card list (admin)                    |
+| `/idcard/employee/<id>/`      | Card detail (admin)                  |
+| `/idcard/apple-pass/<id>/`    | Download `.pkpass`                   |
+| `/idcard/google-pass/<id>/`   | Add-to-Google-Wallet page            |
+| `/idcard/my-pass/`            | SSO: logged-in employee's own card   |
+
+`/my-pass/` requires `outpost.django.campusonline`; otherwise returns 503.
 
 ## License
 
-BSD 2-Clause License - Medical University of Graz
+BSD 2-Clause — Medical University of Graz.

@@ -2,65 +2,45 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 
-# Django
-*.log
-local_settings.py
+# Virtual environment
+venv/
+env/
+
+# Django local sandbox (this repo ships as a package; the manage.py /
+# settings.py / urls.py at the root are throwaway scaffolding for local
+# testing and aren't part of the package.)
+manage.py
+settings.py
+urls.py
 db.sqlite3
 db.sqlite3-journal
 /media
 /static
-
-# Virtual Environment
-venv/
-env/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
-.tox/
-.coverage
-.coverage.*
-.cache
-htmlcov/
-
-# Local development files (not part of the package)
-manage.py
-settings.py
-settings_production.py.example
-urls.py
-DEPLOYMENT.md
+/staticfiles
 
 # Credentials
 credentials/
 *.pem
 *.p12
 *.cer
-*.json
+google_oauth_client.json
+google_wallet_token.json
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Test / coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/

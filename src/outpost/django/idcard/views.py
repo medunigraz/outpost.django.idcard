@@ -48,6 +48,7 @@ def employee_card_json(request, employee_id):
     return JsonResponse(data)
 
 
+@login_required
 def generate_qr_code(request, employee_id):
     """Generate QR code for employee's Visitenkarte URL"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)

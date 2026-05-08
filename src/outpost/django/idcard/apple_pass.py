@@ -71,13 +71,7 @@ def generate_pass_json(employee):
             "label": "Business Card",
             "value": employee.visitenkarte_url
         })
-        
-        pass_data["barcode"] = {
-            "message": employee.visitenkarte_url,
-            "format": "PKBarcodeFormatQR",
-            "messageEncoding": "iso-8859-1"
-        }
-        
+
         pass_data["barcodes"] = [{
             "message": employee.visitenkarte_url,
             "format": "PKBarcodeFormatQR",
@@ -159,9 +153,7 @@ def generate_apple_pass(employee_id, include_signature=True):
     pass_json = json.dumps(pass_data, indent=2).encode('utf-8')
     pass_files['pass.json'] = pass_json
     
-    static_dir = os.path.join(
-        settings.BASE_DIR, 'src', 'outpost', 'django', 'idcard', 'static', 'idcard'
-    )
+    static_dir = os.path.join(os.path.dirname(__file__), 'static', 'idcard')
     
     # 2. Icons (required)
     icon_path = os.path.join(static_dir, 'icon.png')

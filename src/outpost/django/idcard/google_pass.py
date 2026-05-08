@@ -28,19 +28,27 @@ except ImportError:
 
 
 SCOPES = ['https://www.googleapis.com/auth/wallet_object.issuer']
-TOKEN_FILE = os.path.join(settings.BASE_DIR, 'credentials', 'google_wallet_token.json')
+
+
+def _token_file():
+    return str(getattr(
+        settings,
+        'GOOGLE_WALLET_TOKEN_FILE',
+        os.path.join(settings.BASE_DIR, 'credentials', 'google_wallet_token.json'),
+    ))
 
 
 def get_authenticated_credentials():
     """Get OAuth2 credentials for Google Wallet API"""
+    token_file = _token_file()
     creds = None
-    
-    if os.path.exists(TOKEN_FILE):
+
+    if os.path.exists(token_file):
         try:
-            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+            creds = Credentials.from_authorized_user_file(token_file, SCOPES)
         except Exception as e:
             logger.error(f"Error loading Google Wallet token: {e}")
-    
+
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             try:
@@ -48,18 +56,18 @@ def get_authenticated_credentials():
             except Exception as e:
                 logger.error(f"Google Wallet token refresh failed: {e}")
                 creds = None
-        
+
         if not creds:
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(settings.GOOGLE_OAUTH_CLIENT_FILE),
                 SCOPES
             )
             creds = flow.run_local_server(port=8080)
-        
-        os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
-        with open(TOKEN_FILE, 'w') as token:
+
+        os.makedirs(os.path.dirname(token_file), exist_ok=True)
+        with open(token_file, 'w') as token:
             token.write(creds.to_json())
-    
+
     return creds
 
 
@@ -254,8 +262,8 @@ def google_pass_download(request, employee_id):
     
     try:
         employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
-        
-        if not os.path.exists(TOKEN_FILE):
+
+        if not os.path.exists(_token_file()):
             return HttpResponse(
                 "<h1>Google Wallet Authentication Required</h1>"
                 "<p>First-time setup needed. Run this command in terminal:</p>"
