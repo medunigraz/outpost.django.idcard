@@ -27,7 +27,7 @@ def generate_pass_json(employee):
         import uuid
         employee.apple_pass_serial = str(uuid.uuid4())
         employee.save()
-    
+
     pass_data = {
         "formatVersion": 1,
         "passTypeIdentifier": settings.APPLE_PASS_TYPE_ID,
@@ -40,44 +40,72 @@ def generate_pass_json(employee):
         "labelColor": "rgb(255, 255, 255)",
         "generic": {
             "primaryFields": [
-                {
-                    "key": "name",
-                    "label": "NAME",
-                    "value": employee.full_name
-                }
+                {"key": "name", "label": "NAME", "value": employee.full_name}
             ],
             "secondaryFields": [],
             "auxiliaryFields": [],
-            "backFields": []
-        }
+            "backFields": [],
+        },
     }
-    
-    if employee.organizational_unit:
-        pass_data["generic"]["secondaryFields"].append({
-            "key": "organization",
-            "label": "ORGANIZATIONAL UNIT",
-            "value": employee.organizational_unit
-        })
-    
-    pass_data["generic"]["backFields"].append({
-        "key": "about",
-        "label": "About",
-        "value": "This card identifies you as an employee of the Medical University of Graz."
+
+    sec = pass_data["generic"]["secondaryFields"]
+    aux = pass_data["generic"]["auxiliaryFields"]
+    back = pass_data["generic"]["backFields"]
+
+    sec.append({
+        "key": "id",
+        "label": "BEDIENSTETENNUMMER",
+        "value": str(employee.employee_id),
     })
-    
-    if employee.visitenkarte_url:
-        pass_data["generic"]["backFields"].append({
-            "key": "visitenkarte",
-            "label": "Business Card",
-            "value": employee.visitenkarte_url
+    if employee.organizational_unit_short:
+        sec.append({
+            "key": "oe_short",
+            "label": "OE",
+            "value": employee.organizational_unit_short,
         })
 
+    if employee.email:
+        aux.append({"key": "email", "label": "E-MAIL", "value": employee.email})
+
+    if employee.organizational_unit:
+        back.append({
+            "key": "oe_full",
+            "label": "Organisationseinheit",
+            "value": employee.organizational_unit,
+        })
+    if employee.dienstort:
+        back.append({"key": "dienstort", "label": "Dienstort", "value": employee.dienstort})
+    if employee.organization_phone:
+        back.append({
+            "key": "oe_phone",
+            "label": "Telefon (OE)",
+            "value": employee.organization_phone,
+        })
+    if employee.organization_email:
+        back.append({
+            "key": "oe_email",
+            "label": "E-Mail (OE)",
+            "value": employee.organization_email,
+        })
+
+    if employee.visitenkarte_url:
+        back.append({
+            "key": "visitenkarte",
+            "label": "Visitenkarte",
+            "value": employee.visitenkarte_url,
+        })
         pass_data["barcodes"] = [{
             "message": employee.visitenkarte_url,
             "format": "PKBarcodeFormatQR",
-            "messageEncoding": "iso-8859-1"
+            "messageEncoding": "iso-8859-1",
         }]
-    
+
+    back.append({
+        "key": "about",
+        "label": "About",
+        "value": "This card identifies you as an employee of the Medical University of Graz.",
+    })
+
     return pass_data
 
 
