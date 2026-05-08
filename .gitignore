@@ -11,12 +11,10 @@ dist/
 venv/
 env/
 
-# Django local sandbox (this repo ships as a package; the manage.py /
-# settings.py / urls.py at the root are throwaway scaffolding for local
-# testing and aren't part of the package.)
-manage.py
-settings.py
-urls.py
+# Django local sandbox 
+/manage.py
+/settings.py
+/urls.py
 db.sqlite3
 db.sqlite3-journal
 /media
