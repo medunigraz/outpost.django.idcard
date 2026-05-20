@@ -153,14 +153,14 @@ def generate_pass_object(employee):
         "state": "ACTIVE",
         "header": {
             "defaultValue": {
-                "language": "en-US",
+                "language": "de-DE",
                 "value": employee.full_name
             }
         },
         "textModulesData": [
             {
                 "id": "employee_id",
-                "header": "Employee ID",
+                "header": "Bedienstetennummer",
                 "body": str(employee.employee_id)
             }
         ]
@@ -173,26 +173,54 @@ def generate_pass_object(employee):
             },
             "contentDescription": {
                 "defaultValue": {
-                    "language": "en-US",
-                    "value": f"Photo of {employee.full_name}"
+                    "language": "de-DE",
+                    "value": f"Foto von {employee.full_name}"
                 }
             }
         }
     
+    if employee.organizational_unit_short:
+        pass_object["textModulesData"].append({
+            "id": "org_short",
+            "header": "OE",
+            "body": employee.organizational_unit_short,
+        })
+
     if employee.organizational_unit:
         pass_object["textModulesData"].append({
             "id": "org_unit",
-            "header": "Organizational Unit",
+            "header": "Organisationseinheit",
             "body": employee.organizational_unit
         })
-    
+
+    if employee.dienstort:
+        pass_object["textModulesData"].append({
+            "id": "dienstort",
+            "header": "Dienstort",
+            "body": employee.dienstort,
+        })
+
     if employee.email:
         pass_object["textModulesData"].append({
             "id": "email",
-            "header": "Email",
+            "header": "E-Mail",
             "body": employee.email
         })
-    
+
+    if employee.organization_phone:
+        pass_object["textModulesData"].append({
+            "id": "oe_phone",
+            "header": "Telefon (OE)",
+            "body": employee.organization_phone,
+        })
+
+    if employee.organization_email:
+        pass_object["textModulesData"].append({
+            "id": "oe_email",
+            "header": "E-Mail (OE)",
+            "body": employee.organization_email,
+        })
+
     if employee.visitenkarte_url:
         pass_object["barcode"] = {
             "type": "QR_CODE",
@@ -203,7 +231,7 @@ def generate_pass_object(employee):
             "uris": [
                 {
                     "uri": employee.visitenkarte_url,
-                    "description": "Employee Business Card",
+                    "description": "Visitenkarte",
                     "id": "visitenkarte"
                 }
             ]
