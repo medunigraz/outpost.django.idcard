@@ -4,8 +4,234 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Digital ID Cards{% endblock %} - MedUni Graz</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'idcard/styles.css' %}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+        header {
+            background: #007c31;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        header h1 { margin: 0; padding: 0 20px; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h2, .card h3 { margin-bottom: 15px; color: #007c31; }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007c31;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-right: 10px;
+            margin-top: 10px;
+            transition: background-color 0.2s ease;
+        }
+        .btn:hover { background: #10a53c; }
+        .btn-secondary { background: #666; }
+        .btn-secondary:hover { background: #888; }
+        .btn-warning { background: #ee783d; }
+        .btn-warning:hover { background: #ff8a4d; }
+
+        a { color: #007c31; }
+        a:hover { color: #10a53c; }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        table tr { border-bottom: 1px solid #eee; }
+        table td { padding: 10px; }
+        table td:first-child { background: #f9f9f9; font-weight: bold; width: 200px; }
+
+        .employee-photo { max-width: 300px; border-radius: 8px; margin: 20px 0; }
+        .qr-code { max-width: 300px; margin-top: 10px; }
+
+        .employee-list { list-style: none; padding: 0; }
+        .employee-list li { padding: 15px; border-bottom: 1px solid #eee; }
+        .employee-list li:last-child { border-bottom: none; }
+
+        input[type="text"], input[type="email"], textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input[type="text"]:focus, input[type="email"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #007c31;
+        }
+
+        .text-muted { color: #999; }
+        .text-center { text-align: center; }
+        .mt-10 { margin-top: 10px; }
+        .mt-20 { margin-top: 20px; }
+        .mb-10 { margin-bottom: 10px; }
+        .mb-20 { margin-bottom: 20px; }
+
+        .error-message { color: #d32f2f; margin-bottom: 20px; }
+        .warning-message { color: #ee783d; margin-bottom: 20px; }
+        .info-message { color: #666; margin-bottom: 20px; }
+
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 12px;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* ===== /my-pass landing page ===== */
+
+        .lang-switch { text-align: right; margin-bottom: 12px; font-size: 14px; }
+        .lang-switch a {
+            color: #007c31;
+            text-decoration: none;
+            border: 1px solid #007c31;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+        .lang-switch a:hover { background: #007c31; color: white; }
+
+        .hero {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            margin-bottom: 24px;
+        }
+        .hero-photo img, .hero-photo-placeholder {
+            width: 120px;
+            height: 120px;
+            border-radius: 12px;
+            object-fit: cover;
+            border: 3px solid #007c31;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 13px;
+        }
+        .hero-info h2 { margin: 0 0 6px 0; color: #007c31; font-size: 22px; }
+        .hero-info .muted { color: #666; margin: 0; font-size: 14px; line-height: 1.5; }
+
+        .action-card {
+            background: linear-gradient(135deg, #007c31 0%, #10a53c 100%);
+            color: white;
+            padding: 28px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0, 124, 49, 0.2);
+        }
+        .action-card h3 { margin: 0 0 12px 0; color: white; font-size: 20px; }
+        .action-card p { margin: 0 0 18px 0; font-size: 15px; line-height: 1.5; opacity: 0.95; }
+        .action-card .muted { opacity: 0.8; font-size: 14px; }
+
+        .wallet-btn {
+            display: inline-block;
+            background: white;
+            color: #007c31;
+            padding: 14px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+            margin: 6px 8px 6px 0;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .wallet-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+        .wallet-btn-apple::before {
+            content: "";
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            vertical-align: -3px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007c31'%3E%3Cpath d='M17.05 20.28c-.98.95-2.05.94-3.08.43-1.09-.5-2.08-.55-3.24 0-1.43.71-2.18.56-3.06-.43-4.96-5.18-4.23-13.13 1.43-13.46 1.32.07 2.24.74 3.02.79 1.17-.24 2.29-.94 3.55-.84 1.5.12 2.62.7 3.36 1.74-3.1 1.88-2.36 5.98.5 7.13-.57 1.5-1.3 2.99-2.48 4.64M12.03 7.27c-.13-2.18 1.66-4 3.71-4.18.27 2.59-2.31 4.52-3.71 4.18'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        .wallet-btn-google::before {
+            content: "";
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            vertical-align: -3px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007c31'%3E%3Cpath d='M21 7H3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm0 8H3V9h18v6z'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .qr-block {
+            background: white;
+            color: #333;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 12px 0 20px 0;
+            display: inline-block;
+        }
+        .qr-block img { display: block; margin: 0 auto; max-width: 240px; height: auto; }
+        .qr-caption { margin: 12px 0 0 0 !important; color: #555 !important; font-size: 13px !important; opacity: 1 !important; }
+
+        .advanced { margin-top: 8px; }
+        .advanced summary {
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 13px;
+            padding: 6px 0;
+        }
+        .advanced summary:hover { color: white; }
+        .advanced[open] { margin-top: 12px; }
+
+        .info-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        .info-card h4 { margin: 0 0 12px 0; color: #007c31; font-size: 16px; }
+        .info-card ul { margin: 0; padding-left: 20px; color: #555; font-size: 14px; line-height: 1.6; }
+        .info-card li { margin-bottom: 6px; }
+
+        @media (max-width: 600px) {
+            .hero { flex-direction: column; text-align: center; }
+            .wallet-btn { display: block; margin: 8px 0; }
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -13,7 +239,7 @@
             <h1>{% block header %}Digital ID Cards - MedUni Graz{% endblock %}</h1>
         </div>
     </header>
-    
+
     <div class="container">
         {% block content %}{% endblock %}
     </div>
