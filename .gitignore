@@ -29,6 +29,8 @@ credentials/
 google_oauth_client.json
 google_wallet_token.json
 
+.claude/
+
 # IDE / OS
 .vscode/
 .idea/

@@ -1,0 +1,69 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: outpost.django.idcard\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "My employee ID card"
+msgstr "Mein digitaler Mitarbeiterausweis"
+
+msgid "Digital employee ID card"
+msgstr "Digitaler Mitarbeiterausweis"
+
+msgid "Your photo"
+msgstr "Ihr Foto"
+
+msgid "No photo"
+msgstr "Kein Foto"
+
+msgid "Add your ID card to your phone"
+msgstr "Ausweis auf Ihr Smartphone laden"
+
+msgid "We detected an iPhone or iPad. Tap the button below to add your ID card to Apple Wallet."
+msgstr "Wir haben ein iPhone oder iPad erkannt. Tippen Sie auf die Schaltfläche, um Ihren Ausweis zu Apple Wallet hinzuzufügen."
+
+msgid "Add to Apple Wallet"
+msgstr "Zu Apple Wallet hinzufügen"
+
+msgid "We detected an Android device. Tap the button below to add your ID card to Google Wallet."
+msgstr "Wir haben ein Android-Gerät erkannt. Tippen Sie auf die Schaltfläche, um Ihren Ausweis zu Google Wallet hinzuzufügen."
+
+msgid "Add to Google Wallet"
+msgstr "Zu Google Wallet hinzufügen"
+
+msgid "Your card has not been generated yet — please use a desktop or iPhone for the first download."
+msgstr "Ihr Ausweis wurde noch nicht erstellt — bitte verwenden Sie für den ersten Download einen Desktop-Computer oder ein iPhone."
+
+msgid "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera."
+msgstr "Öffnen Sie diese Seite auf Ihrem Smartphone, um Ihren Ausweis in die Wallet-App zu laden — oder scannen Sie den untenstehenden QR-Code mit der Kamera Ihres Telefons."
+
+msgid "QR code to open this page on your phone"
+msgstr "QR-Code zum Öffnen dieser Seite auf Ihrem Smartphone"
+
+msgid "Scan with your phone's camera"
+msgstr "Mit der Kamera Ihres Smartphones scannen"
+
+msgid "Or download directly"
+msgstr "Oder direkt herunterladen"
+
+msgid "Download .pkpass (Apple Wallet)"
+msgstr ".pkpass herunterladen (Apple Wallet)"
+
+msgid "Google Wallet link"
+msgstr "Google-Wallet-Link"
+
+msgid "About your digital ID card"
+msgstr "Über Ihren digitalen Ausweis"
+
+msgid "Your card is for soft identification only (e.g. employee discounts at partner shops)."
+msgstr "Der Ausweis dient nur zur informellen Identifikation (z. B. für Mitarbeiterrabatte in Partnerläden)."
+
+msgid "The QR code on the card links to your official MedUni business card (Visitenkarte)."
+msgstr "Der QR-Code auf dem Ausweis verweist auf Ihre offizielle MedUni-Visitenkarte."
+
+msgid "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card."
+msgstr "Foto und Angaben werden aus CAMPUSonline übernommen. Aktualisierungen erscheinen, sobald Sie den Ausweis neu erstellen."
