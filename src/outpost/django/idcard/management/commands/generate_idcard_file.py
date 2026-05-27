@@ -11,16 +11,21 @@ Usage:
     # Generate the file for a known username (defaults to ./<username>.pkpass)
     python -m django generate_idcard_file o_name
     python -m django generate_idcard_file o_name --output /tmp/name.pkpass
+
+    # Override the photo with a local file (when CAMPUSonline has no avatar
+    # URL or the download fails)
+    python -m django generate_idcard_file o_name --photo ./her_photo.jpg
 """
+import os
+
+import requests
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
 from outpost.django.idcard.apple_pass import generate_apple_pass
 from outpost.django.idcard.models import EmployeeCard
-from outpost.django.idcard.sso_views import (
-    _person_to_card_defaults,
-    download_avatar,
-)
+from outpost.django.idcard.sso_views import _person_to_card_defaults
 
 try:
     from outpost.django.campusonline.models import Person
@@ -57,8 +62,17 @@ class Command(BaseCommand):
             metavar="PATH",
             help="Where to write the .pkpass (default: ./<username>.pkpass).",
         )
+        parser.add_argument(
+            "--photo",
+            metavar="PATH",
+            help=(
+                "Local image file (jpg/png) to use as the card photo, "
+                "overriding whatever CAMPUSonline has. Useful when person.avatar "
+                "is empty in dev CAMPUSonline."
+            ),
+        )
 
-    def handle(self, *args, username, search, output, **options):
+    def handle(self, *args, username, search, output, photo, **options):
         if Person is None:
             raise CommandError(
                 f"outpost.django.campusonline is not importable: {_IMPORT_ERROR}"
@@ -97,19 +111,7 @@ class Command(BaseCommand):
             f"(Bedienstetennummer {person.id})."
         )
 
-        if person.avatar and not card.photo:
-            avatar_file = download_avatar(person.avatar)
-            if avatar_file:
-                card.photo.save(
-                    f"employee_{person.id}.jpg",
-                    avatar_file,
-                    save=True,
-                )
-                self.stdout.write("Downloaded photo from CAMPUSonline.")
-            else:
-                self.stdout.write(self.style.WARNING(
-                    "Could not download avatar — pass will have no photo."
-                ))
+        self._attach_photo(card, person, photo)
 
         pass_buffer = generate_apple_pass(card.employee_id, include_signature=True)
         output_path = output or f"./{username}.pkpass"
@@ -117,6 +119,52 @@ class Command(BaseCommand):
             f.write(pass_buffer.getvalue())
 
         self.stdout.write(self.style.SUCCESS(f"Wrote {output_path}"))
+
+    def _attach_photo(self, card, person, photo_path):
+        if photo_path:
+            if not os.path.exists(photo_path):
+                raise CommandError(f"--photo file does not exist: {photo_path}")
+            with open(photo_path, "rb") as f:
+                content = f.read()
+            filename = os.path.basename(photo_path)
+            card.photo.save(filename, ContentFile(content, name=filename), save=True)
+            self.stdout.write(self.style.SUCCESS(
+                f"Attached local photo: {photo_path} ({len(content)} bytes)"
+            ))
+            return
+
+        self.stdout.write(f"CAMPUSonline person.avatar = {person.avatar!r}")
+
+        if not person.avatar:
+            self.stdout.write(self.style.WARNING(
+                "person.avatar is empty in (dev) CAMPUSonline — the pass will "
+                "have no photo. To attach one manually, re-run with "
+                "--photo /path/to/headshot.jpg"
+            ))
+            return
+
+        if card.photo:
+            self.stdout.write(
+                f"Using already-stored photo: {card.photo.name}"
+            )
+            return
+
+        try:
+            response = requests.get(person.avatar, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            self.stdout.write(self.style.WARNING(
+                f"Avatar download from {person.avatar} failed: {exc}\n"
+                f"Pass will have no photo. To attach one manually, re-run with "
+                f"--photo /path/to/headshot.jpg"
+            ))
+            return
+
+        filename = person.avatar.rsplit("/", 1)[-1] or f"employee_{person.id}.jpg"
+        card.photo.save(filename, ContentFile(response.content, name=filename), save=True)
+        self.stdout.write(self.style.SUCCESS(
+            f"Downloaded photo from CAMPUSonline ({len(response.content)} bytes)"
+        ))
 
     def _do_search(self, name):
         qs = Person.objects.filter(
