@@ -110,16 +110,38 @@ def _person_to_card_defaults(person):
     }
 
 
+def _avatar_url(person):
+    """Pick the best CAMPUSonline avatar URL for a Person — the internal
+    `avatar_private` is preferred because it bypasses the per-person
+    public-visibility gate, so it works for staff whose photo is marked
+    internal-only. Falls back to the public `avatar`."""
+    return getattr(person, 'avatar_private', None) or person.avatar or ''
+
+
 def download_avatar(avatar_url):
-    """Download avatar image from URL"""
+    """Download avatar image from URL. Returns None if the URL fails, or if
+    the response body is not a valid image (e.g. CAMPUSonline returned an HTML
+    login page with 200 OK because the endpoint is session-gated)."""
     try:
         response = requests.get(avatar_url, timeout=10)
         response.raise_for_status()
-        filename = avatar_url.split('/')[-1] or 'avatar.jpg'
-        return ContentFile(response.content, name=filename)
     except requests.RequestException as e:
         logger.error(f"Error downloading avatar from {avatar_url}: {e}")
         return None
+
+    from PIL import Image, UnidentifiedImageError
+    try:
+        Image.open(io.BytesIO(response.content)).verify()
+    except (UnidentifiedImageError, OSError) as e:
+        logger.error(
+            f"Avatar from {avatar_url} is not a valid image "
+            f"({len(response.content)} bytes, Content-Type: "
+            f"{response.headers.get('Content-Type')!r}): {e}"
+        )
+        return None
+
+    filename = avatar_url.split('/')[-1] or 'avatar.jpg'
+    return ContentFile(response.content, name=filename)
 
 
 @login_required
@@ -161,8 +183,9 @@ def generate_my_pass(request):
         defaults=_person_to_card_defaults(person),
     )
 
-    if person.avatar and not employee_card.photo:
-        avatar_file = download_avatar(person.avatar)
+    avatar_url = _avatar_url(person)
+    if avatar_url and not employee_card.photo:
+        avatar_file = download_avatar(avatar_url)
         if avatar_file:
             employee_card.photo.save(
                 f'employee_{person.id}.jpg',

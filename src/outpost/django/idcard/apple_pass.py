@@ -15,10 +15,57 @@ from io import BytesIO
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from django.conf import settings
-from PIL import Image
+from PIL import Image, ImageDraw, UnidentifiedImageError
 from .models import EmployeeCard
 
 logger = logging.getLogger(__name__)
+
+
+def _silhouette_thumbnail(size):
+    """Generic person-silhouette PNG used when an employee has no usable photo.
+    White on transparent so the card's green background shows through.
+    Drawn at 4× and downsampled with LANCZOS for clean edges."""
+    scale = 4
+    big = size * scale
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    fill = (255, 255, 255, 230)
+
+    head_r = big * 0.18
+    head_cx, head_cy = big / 2, big * 0.32
+    draw.ellipse(
+        [head_cx - head_r, head_cy - head_r, head_cx + head_r, head_cy + head_r],
+        fill=fill,
+    )
+
+    body_w, body_h = big * 0.78, big * 1.10
+    body_left = (big - body_w) / 2
+    body_top = big * 0.58
+    draw.ellipse(
+        [body_left, body_top, body_left + body_w, body_top + body_h],
+        fill=fill,
+    )
+
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def _build_thumbnail(employee, size):
+    """Real photo (center-cropped to square) when available and valid;
+    otherwise the silhouette placeholder."""
+    if employee.photo:
+        try:
+            src = Image.open(employee.photo.path)
+            short = min(src.width, src.height)
+            left = (src.width - short) // 2
+            top = (src.height - short) // 2
+            square = src.crop((left, top, left + short, top + short))
+            return square.resize((size, size), Image.LANCZOS)
+        except (UnidentifiedImageError, OSError, FileNotFoundError) as e:
+            logger.error(
+                f"Could not process photo for employee {employee.employee_id}: "
+                f"{e}; falling back to silhouette."
+            )
+    return _silhouette_thumbnail(size)
 
 
 def generate_pass_json(employee):
@@ -205,28 +252,13 @@ def generate_apple_pass(employee_id, include_signature=True):
             with open(logo_2x_path, 'rb') as f:
                 pass_files['logo@2x.png'] = f.read()
     
-    # 4. Employee photo thumbnail — center-cropped to square so it fills
-    #    Apple Wallet's fixed thumbnail slot (90×90pt, 180×180 @2x) instead of
-    #    being letterboxed when the source headshot is portrait.
-    if employee.photo:
-        try:
-            src = Image.open(employee.photo.path)
-            short_side = min(src.width, src.height)
-            left = (src.width - short_side) // 2
-            top = (src.height - short_side) // 2
-            square = src.crop((left, top, left + short_side, top + short_side))
-
-            thumb_1x = square.resize((90, 90), Image.LANCZOS)
-            buf_1x = BytesIO()
-            thumb_1x.save(buf_1x, format='PNG')
-            pass_files['thumbnail.png'] = buf_1x.getvalue()
-
-            thumb_2x = square.resize((180, 180), Image.LANCZOS)
-            buf_2x = BytesIO()
-            thumb_2x.save(buf_2x, format='PNG')
-            pass_files['thumbnail@2x.png'] = buf_2x.getvalue()
-        except Exception as e:
-            logger.error(f"Could not process photo for employee {employee.employee_id}: {e}")
+    # 4. Thumbnail (real photo or silhouette placeholder) at Apple Wallet's
+    #    fixed thumbnail dimensions: 90×90pt (180×180 @2x).
+    for size, key in ((90, 'thumbnail.png'), (180, 'thumbnail@2x.png')):
+        thumb = _build_thumbnail(employee, size)
+        buf = BytesIO()
+        thumb.save(buf, format='PNG')
+        pass_files[key] = buf.getvalue()
     
     # 5. Manifest
     manifest_json = create_manifest(pass_files)

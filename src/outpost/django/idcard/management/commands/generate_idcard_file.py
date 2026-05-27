@@ -1,31 +1,32 @@
 """
-Generate a signed .pkpass file for a specific CAMPUSonline user and write it
-to disk. Use this to hand out test cards to colleagues before the SSO flow
-is publicly available (or where you want to hand someone the file directly
-without them going through the web flow).
+Admin command: generate a signed .pkpass file for a CAMPUSonline user and
+write it to disk. Use this when an admin needs to hand a card to someone
+directly instead of relying on the self-service SSO flow at /idcard/my-pass/.
 
 Usage:
     # Look people up by name fragment (case-insensitive match on first/last name)
     python -m django generate_idcard_file --search Surname
 
     # Generate the file for a known username (defaults to ./<username>.pkpass)
-    python -m django generate_idcard_file o_name
-    python -m django generate_idcard_file o_name --output /tmp/name.pkpass
+    python -m django generate_idcard_file <username>
+    python -m django generate_idcard_file <username> --output /tmp/card.pkpass
 
     # Override the photo with a local file (when CAMPUSonline has no avatar
     # URL or the download fails)
-    python -m django generate_idcard_file o_name --photo ./her_photo.jpg
+    python -m django generate_idcard_file <username> --photo ./photo.jpg
 """
+import io
 import os
 
 import requests
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
+from PIL import Image, UnidentifiedImageError
 
 from outpost.django.idcard.apple_pass import generate_apple_pass
 from outpost.django.idcard.models import EmployeeCard
-from outpost.django.idcard.sso_views import _person_to_card_defaults
+from outpost.django.idcard.sso_views import _avatar_url, _person_to_card_defaults
 
 try:
     from outpost.django.campusonline.models import Person
@@ -34,6 +35,14 @@ except ImportError as exc:
     _IMPORT_ERROR = exc
 else:
     _IMPORT_ERROR = None
+
+
+def _is_valid_image_file(path):
+    try:
+        Image.open(path).verify()
+        return True
+    except (UnidentifiedImageError, OSError, FileNotFoundError):
+        return False
 
 
 class Command(BaseCommand):
@@ -67,8 +76,8 @@ class Command(BaseCommand):
             metavar="PATH",
             help=(
                 "Local image file (jpg/png) to use as the card photo, "
-                "overriding whatever CAMPUSonline has. Useful when person.avatar "
-                "is empty in dev CAMPUSonline."
+                "overriding whatever CAMPUSonline has. Useful when "
+                "person.avatar is empty or the download fails."
             ),
         )
 
@@ -133,37 +142,63 @@ class Command(BaseCommand):
             ))
             return
 
-        self.stdout.write(f"CAMPUSonline person.avatar = {person.avatar!r}")
+        avatar_url = _avatar_url(person)
+        self.stdout.write(
+            f"avatar_private={getattr(person, 'avatar_private', None)!r} "
+            f"avatar={person.avatar!r} → using {avatar_url!r}"
+        )
 
-        if not person.avatar:
+        if card.photo:
+            if _is_valid_image_file(card.photo.path):
+                self.stdout.write(f"Using already-stored photo: {card.photo.name}")
+                return
             self.stdout.write(self.style.WARNING(
-                "person.avatar is empty in (dev) CAMPUSonline — the pass will "
-                "have no photo. To attach one manually, re-run with "
-                "--photo /path/to/headshot.jpg"
+                f"Stored photo {card.photo.name} is not a valid image — "
+                f"discarding and re-fetching."
+            ))
+            card.photo.delete(save=True)
+
+        if not avatar_url:
+            self.stdout.write(self.style.WARNING(
+                "No avatar URL in CAMPUSonline — pass will use the "
+                "silhouette placeholder. To attach a real photo manually, "
+                "re-run with --photo /path/to/photo.jpg"
             ))
             return
 
-        if card.photo:
-            self.stdout.write(
-                f"Using already-stored photo: {card.photo.name}"
-            )
-            return
-
         try:
-            response = requests.get(person.avatar, timeout=10)
+            response = requests.get(avatar_url, timeout=10)
             response.raise_for_status()
         except requests.RequestException as exc:
             self.stdout.write(self.style.WARNING(
-                f"Avatar download from {person.avatar} failed: {exc}\n"
-                f"Pass will have no photo. To attach one manually, re-run with "
-                f"--photo /path/to/headshot.jpg"
+                f"Avatar download from {avatar_url} failed: {exc}\n"
+                f"Pass will use the silhouette placeholder. To attach a "
+                f"real photo manually, re-run with --photo /path/to/photo.jpg"
+            ))
+            return
+
+        content_type = response.headers.get("Content-Type", "?")
+        try:
+            Image.open(io.BytesIO(response.content)).verify()
+        except (UnidentifiedImageError, OSError) as exc:
+            preview = response.content[:200]
+            self.stdout.write(self.style.WARNING(
+                f"Avatar URL returned {len(response.content)} bytes with "
+                f"Content-Type {content_type!r}, but it's not a valid image: "
+                f"{exc}\n"
+                f"First bytes: {preview!r}\n"
+                f"Most likely the endpoint is session-gated and returned an "
+                f"HTML login page instead of the image. Pass will use the "
+                f"silhouette placeholder. Re-run with --photo /path/to/photo.jpg "
+                f"to attach one manually."
             ))
             return
 
         filename = person.avatar.rsplit("/", 1)[-1] or f"employee_{person.id}.jpg"
         card.photo.save(filename, ContentFile(response.content, name=filename), save=True)
         self.stdout.write(self.style.SUCCESS(
-            f"Downloaded photo from CAMPUSonline ({len(response.content)} bytes)"
+            f"Downloaded photo from CAMPUSonline "
+            f"({len(response.content)} bytes, Content-Type {content_type!r})"
         ))
 
     def _do_search(self, name):
