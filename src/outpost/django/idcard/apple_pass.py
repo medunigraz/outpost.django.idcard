@@ -33,7 +33,7 @@ def generate_pass_json(employee):
         "passTypeIdentifier": settings.APPLE_PASS_TYPE_ID,
         "serialNumber": employee.apple_pass_serial,
         "teamIdentifier": settings.APPLE_TEAM_ID,
-        "organizationName": "Medizinische Universität Graz",
+        "organizationName": "MedUni Graz",
         "description": f"MedUni Graz Employee ID - {employee.full_name}",
         "backgroundColor": "rgb(0, 124, 49)",
         "foregroundColor": "rgb(255, 255, 255)",
@@ -52,11 +52,6 @@ def generate_pass_json(employee):
     aux = pass_data["generic"]["auxiliaryFields"]
     back = pass_data["generic"]["backFields"]
 
-    sec.append({
-        "key": "id",
-        "label": "BEDIENSTETENNUMMER",
-        "value": str(employee.employee_id),
-    })
     if employee.organizational_unit_short:
         sec.append({
             "key": "oe_short",
@@ -64,6 +59,11 @@ def generate_pass_json(employee):
             "value": employee.organizational_unit_short,
         })
 
+    aux.append({
+        "key": "id",
+        "label": "BEDIENSTETENNUMMER",
+        "value": str(employee.employee_id),
+    })
     if employee.email:
         aux.append({"key": "email", "label": "E-MAIL", "value": employee.email})
 
@@ -205,23 +205,26 @@ def generate_apple_pass(employee_id, include_signature=True):
             with open(logo_2x_path, 'rb') as f:
                 pass_files['logo@2x.png'] = f.read()
     
-    # 4. Employee photo thumbnail
+    # 4. Employee photo thumbnail — center-cropped to square so it fills
+    #    Apple Wallet's fixed thumbnail slot (90×90pt, 180×180 @2x) instead of
+    #    being letterboxed when the source headshot is portrait.
     if employee.photo:
         try:
-            img = Image.open(employee.photo.path)
-            img.thumbnail((110, 110), Image.LANCZOS)
-            
-            thumb_buffer = BytesIO()
-            img.save(thumb_buffer, format='PNG')
-            pass_files['thumbnail.png'] = thumb_buffer.getvalue()
-            
-            # Retina version
-            img_2x = Image.open(employee.photo.path)
-            img_2x.thumbnail((220, 220), Image.LANCZOS)
-            
-            thumb_2x_buffer = BytesIO()
-            img_2x.save(thumb_2x_buffer, format='PNG')
-            pass_files['thumbnail@2x.png'] = thumb_2x_buffer.getvalue()
+            src = Image.open(employee.photo.path)
+            short_side = min(src.width, src.height)
+            left = (src.width - short_side) // 2
+            top = (src.height - short_side) // 2
+            square = src.crop((left, top, left + short_side, top + short_side))
+
+            thumb_1x = square.resize((90, 90), Image.LANCZOS)
+            buf_1x = BytesIO()
+            thumb_1x.save(buf_1x, format='PNG')
+            pass_files['thumbnail.png'] = buf_1x.getvalue()
+
+            thumb_2x = square.resize((180, 180), Image.LANCZOS)
+            buf_2x = BytesIO()
+            thumb_2x.save(buf_2x, format='PNG')
+            pass_files['thumbnail@2x.png'] = buf_2x.getvalue()
         except Exception as e:
             logger.error(f"Could not process photo for employee {employee.employee_id}: {e}")
     
