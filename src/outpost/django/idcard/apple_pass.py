@@ -35,7 +35,7 @@ def generate_pass_json(employee):
         "teamIdentifier": settings.APPLE_TEAM_ID,
         "organizationName": "MedUni Graz",
         "description": f"MedUni Graz Employee ID - {employee.full_name}",
-        "backgroundColor": "rgb(0, 124, 49)",
+        "backgroundColor": "rgb(0, 124, 60)",
         "foregroundColor": "rgb(255, 255, 255)",
         "labelColor": "rgb(255, 255, 255)",
         "generic": {
