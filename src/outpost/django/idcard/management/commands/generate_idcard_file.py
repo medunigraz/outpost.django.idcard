@@ -26,7 +26,7 @@ from PIL import Image, UnidentifiedImageError
 
 from outpost.django.idcard.apple_pass import generate_apple_pass
 from outpost.django.idcard.models import EmployeeCard
-from outpost.django.idcard.sso_views import _avatar_url, _person_to_card_defaults
+from outpost.django.idcard.sso_views import _person_to_card_defaults
 
 try:
     from outpost.django.campusonline.models import Person
@@ -142,12 +142,6 @@ class Command(BaseCommand):
             ))
             return
 
-        avatar_url = _avatar_url(person)
-        self.stdout.write(
-            f"avatar_private={getattr(person, 'avatar_private', None)!r} "
-            f"avatar={person.avatar!r} → using {avatar_url!r}"
-        )
-
         if card.photo:
             if _is_valid_image_file(card.photo.path):
                 self.stdout.write(f"Using already-stored photo: {card.photo.name}")
@@ -158,48 +152,61 @@ class Command(BaseCommand):
             ))
             card.photo.delete(save=True)
 
-        if not avatar_url:
+        data, source = self._fetch_avatar(person)
+        if not data:
             self.stdout.write(self.style.WARNING(
-                "No avatar URL in CAMPUSonline — pass will use the "
+                "No usable photo found in CAMPUSonline — pass will use the "
                 "silhouette placeholder. To attach a real photo manually, "
                 "re-run with --photo /path/to/photo.jpg"
             ))
             return
 
+        filename = f"employee_{person.id}.jpg"
+        card.photo.save(filename, ContentFile(data, name=filename), save=True)
+        self.stdout.write(self.style.SUCCESS(
+            f"Saved photo from {source} ({len(data)} bytes)"
+        ))
+
+    def _fetch_avatar(self, person):
+        """Try avatar_private (raw bytes), then fall back to the avatar URL.
+        Returns (bytes, source_description) or (None, None)."""
+        private = getattr(person, 'avatar_private', None)
+        if private:
+            data = bytes(private)
+            if self._is_image_bytes(data, "avatar_private"):
+                return data, "avatar_private (CAMPUSonline DB bytes)"
+
+        if not person.avatar:
+            self.stdout.write(self.style.WARNING(
+                "avatar_private is empty and no public avatar URL is set."
+            ))
+            return None, None
+
+        self.stdout.write(f"Falling back to public avatar URL: {person.avatar}")
         try:
-            response = requests.get(avatar_url, timeout=10)
+            response = requests.get(person.avatar, timeout=10)
             response.raise_for_status()
         except requests.RequestException as exc:
             self.stdout.write(self.style.WARNING(
-                f"Avatar download from {avatar_url} failed: {exc}\n"
-                f"Pass will use the silhouette placeholder. To attach a "
-                f"real photo manually, re-run with --photo /path/to/photo.jpg"
+                f"Avatar download failed: {exc}"
             ))
-            return
+            return None, None
 
-        content_type = response.headers.get("Content-Type", "?")
+        if self._is_image_bytes(response.content, "avatar URL response"):
+            return response.content, f"avatar URL ({person.avatar})"
+        return None, None
+
+    def _is_image_bytes(self, data, source_label):
         try:
-            Image.open(io.BytesIO(response.content)).verify()
+            Image.open(io.BytesIO(data)).verify()
+            return True
         except (UnidentifiedImageError, OSError) as exc:
-            preview = response.content[:200]
+            preview = data[:120]
             self.stdout.write(self.style.WARNING(
-                f"Avatar URL returned {len(response.content)} bytes with "
-                f"Content-Type {content_type!r}, but it's not a valid image: "
-                f"{exc}\n"
-                f"First bytes: {preview!r}\n"
-                f"Most likely the endpoint is session-gated and returned an "
-                f"HTML login page instead of the image. Pass will use the "
-                f"silhouette placeholder. Re-run with --photo /path/to/photo.jpg "
-                f"to attach one manually."
+                f"{source_label} ({len(data)} bytes) is not a valid image: "
+                f"{exc} | first bytes: {preview!r}"
             ))
-            return
-
-        filename = person.avatar.rsplit("/", 1)[-1] or f"employee_{person.id}.jpg"
-        card.photo.save(filename, ContentFile(response.content, name=filename), save=True)
-        self.stdout.write(self.style.SUCCESS(
-            f"Downloaded photo from CAMPUSonline "
-            f"({len(response.content)} bytes, Content-Type {content_type!r})"
-        ))
+            return False
 
     def _do_search(self, name):
         qs = Person.objects.filter(

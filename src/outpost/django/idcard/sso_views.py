@@ -110,38 +110,42 @@ def _person_to_card_defaults(person):
     }
 
 
-def _avatar_url(person):
-    """Pick the best CAMPUSonline avatar URL for a Person — the internal
-    `avatar_private` is preferred because it bypasses the per-person
-    public-visibility gate, so it works for staff whose photo is marked
-    internal-only. Falls back to the public `avatar`."""
-    return getattr(person, 'avatar_private', None) or person.avatar or ''
+def _avatar_bytes(person):
+    """Return raw image bytes for a CAMPUSonline person, or None.
 
+    Prefers `Person.avatar_private` — a BinaryField holding the photo bytes
+    directly in CAMPUSonline. This bypasses the per-person public-visibility
+    gate that makes the public `avatar` URL return an HTML page for staff
+    who've marked their photo internal-only.
 
-def download_avatar(avatar_url):
-    """Download avatar image from URL. Returns None if the URL fails, or if
-    the response body is not a valid image (e.g. CAMPUSonline returned an HTML
-    login page with 200 OK because the endpoint is session-gated)."""
-    try:
-        response = requests.get(avatar_url, timeout=10)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        logger.error(f"Error downloading avatar from {avatar_url}: {e}")
-        return None
-
+    Falls back to downloading the public `avatar` URL if `avatar_private`
+    is empty. Always validates that the result is actually an image."""
     from PIL import Image, UnidentifiedImageError
-    try:
-        Image.open(io.BytesIO(response.content)).verify()
-    except (UnidentifiedImageError, OSError) as e:
-        logger.error(
-            f"Avatar from {avatar_url} is not a valid image "
-            f"({len(response.content)} bytes, Content-Type: "
-            f"{response.headers.get('Content-Type')!r}): {e}"
-        )
-        return None
 
-    filename = avatar_url.split('/')[-1] or 'avatar.jpg'
-    return ContentFile(response.content, name=filename)
+    private = getattr(person, 'avatar_private', None)
+    if private:
+        data = bytes(private)
+        try:
+            Image.open(io.BytesIO(data)).verify()
+            return data
+        except (UnidentifiedImageError, OSError) as e:
+            logger.error(
+                f"avatar_private for person {person.id} is not a valid image: {e}"
+            )
+
+    if person.avatar:
+        try:
+            response = requests.get(person.avatar, timeout=10)
+            response.raise_for_status()
+            Image.open(io.BytesIO(response.content)).verify()
+            return response.content
+        except (requests.RequestException, UnidentifiedImageError, OSError) as e:
+            logger.error(
+                f"Could not fetch avatar URL {person.avatar} for person "
+                f"{person.id}: {e}"
+            )
+
+    return None
 
 
 @login_required
@@ -183,14 +187,13 @@ def generate_my_pass(request):
         defaults=_person_to_card_defaults(person),
     )
 
-    avatar_url = _avatar_url(person)
-    if avatar_url and not employee_card.photo:
-        avatar_file = download_avatar(avatar_url)
-        if avatar_file:
+    if not employee_card.photo:
+        avatar_data = _avatar_bytes(person)
+        if avatar_data:
             employee_card.photo.save(
                 f'employee_{person.id}.jpg',
-                avatar_file,
-                save=True
+                ContentFile(avatar_data, name=f'employee_{person.id}.jpg'),
+                save=True,
             )
 
     return apple_pass_download(request, employee_card.employee_id)
