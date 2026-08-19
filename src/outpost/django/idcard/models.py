@@ -74,5 +74,7 @@ class EmployeeCard(models.Model):
 
     @property
     def full_name(self):
-        parts = [self.title_prefix, self.first_name, self.last_name, self.title_suffix]
-        return " ".join(p for p in parts if p)
+        name = " ".join(p for p in (self.title_prefix, self.first_name, self.last_name) if p)
+        if self.title_suffix:
+            name = f"{name}, {self.title_suffix}"
+        return name

@@ -1,331 +1,364 @@
 """
-Google Wallet Pass Generator with OAuth2 Authentication
+Google Wallet pass generator (service-account auth).
 
-Uses OAuth2 client credentials (not service accounts).
-First-time authentication required, then fully automated.
+Mirrors apple_pass.py but for Google Wallet. Unlike Apple — where we build and
+sign a file locally and the user downloads it — Google Wallet works by pushing
+the card data to Google's servers via REST, then handing the user a *signed
+link* ("Add to Google Wallet") that tells Google to add their object to their
+phone. Both the REST calls and the link signature use the same service-account
+key, so no interactive/browser auth is involved (it runs headless on sj074).
+
+Hierarchy: issuer (the MedUni account, GOOGLE_WALLET_ISSUER_ID)
+            -> class  (one shared template, created once)
+            -> object (one per employee; PATCHed by Phase B to push updates /
+                       set state=EXPIRED for revocation).
+
+Note on the Generic pass type: its visual fields (logo, background colour,
+title, header) live on the *object*, not the class — the class is a near-empty
+container.
+
+Note on the employee photo: Google's `logo`/`heroImage` fields need a PUBLIC
+https URL (Google's servers fetch it) — wrong for a private staff photo, and
+CAMPUSonline's public avatar URL only works for people who opted their photo
+public anyway (the same gap `avatar_private` solves for Apple). Instead we use
+Google's "Secure Private Images" feature: upload the photo bytes directly via
+an authenticated API call, get back a `privateImageId`, and reference that in
+`imageModulesData` — no public URL ever exists. That field only supports
+`imageModulesData` though, not `logo`/`heroImage`, so the photo shows as a
+detail-section image rather than the small avatar badge.
+https://developers.google.com/wallet/generic/use-cases/secure-private-images
 """
-import json
-import uuid
-import os
 import logging
-from datetime import datetime
+import mimetypes
+import time
+import uuid
+
 from django.conf import settings
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
-from django.http import HttpResponse, HttpResponseRedirect
+
 from .models import EmployeeCard
 
 logger = logging.getLogger(__name__)
 
 try:
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    from googleapiclient.discovery import build
-    import requests
+    from google.oauth2 import service_account
+    from google.auth import jwt as google_jwt
+    from google.auth.transport.requests import AuthorizedSession
+    import requests  # noqa: F401  (kept for exception types / parity)
     GOOGLE_WALLET_AVAILABLE = True
 except ImportError:
     GOOGLE_WALLET_AVAILABLE = False
 
 
 SCOPES = ['https://www.googleapis.com/auth/wallet_object.issuer']
+WALLET_API = 'https://walletobjects.googleapis.com/walletobjects/v1'
+PRIVATE_IMAGE_UPLOAD_API = (
+    'https://walletobjects.googleapis.com/upload/walletobjects/v1/privateContent'
+)
+CLASS_SUFFIX = 'meduni_employee_id'
+
+# Match the Apple card's green (apple_pass.py uses rgb(0, 124, 60)).
+HEX_BACKGROUND = '#007c3c'
+
+_credentials = None
 
 
-def _token_file():
-    return str(getattr(
-        settings,
-        'GOOGLE_WALLET_TOKEN_FILE',
-        os.path.join(settings.BASE_DIR, 'credentials', 'google_wallet_token.json'),
-    ))
+def _service_account_file():
+    return str(settings.GOOGLE_SERVICE_ACCOUNT_FILE)
 
 
 def get_authenticated_credentials():
-    """Get OAuth2 credentials for Google Wallet API"""
-    token_file = _token_file()
-    creds = None
+    """Load (and cache) service-account credentials for the Wallet API.
 
-    if os.path.exists(token_file):
-        try:
-            creds = Credentials.from_authorized_user_file(token_file, SCOPES)
-        except Exception as e:
-            logger.error(f"Error loading Google Wallet token: {e}")
+    The same credentials object is used both to authorize REST calls and to
+    sign the 'Add to Google Wallet' JWT (via its private key)."""
+    global _credentials
+    if _credentials is None:
+        _credentials = service_account.Credentials.from_service_account_file(
+            _service_account_file(), scopes=SCOPES
+        )
+    return _credentials
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-            except Exception as e:
-                logger.error(f"Google Wallet token refresh failed: {e}")
-                creds = None
 
-        if not creds:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(settings.GOOGLE_OAUTH_CLIENT_FILE),
-                SCOPES
-            )
-            creds = flow.run_local_server(port=8080)
+def _session():
+    """An AuthorizedSession that mints/refreshes bearer tokens automatically."""
+    return AuthorizedSession(get_authenticated_credentials())
 
-        os.makedirs(os.path.dirname(token_file), exist_ok=True)
-        with open(token_file, 'w') as token:
-            token.write(creds.to_json())
 
-    return creds
+def _class_id():
+    return f"{settings.GOOGLE_WALLET_ISSUER_ID}.{CLASS_SUFFIX}"
 
 
 def create_or_update_pass_class():
-    """Create or update Google Wallet pass class (template)"""
-    issuer_id = settings.GOOGLE_WALLET_ISSUER_ID
-    class_suffix = 'meduni_employee_id'
-    class_id = f"{issuer_id}.{class_suffix}"
-    
-    pass_class = {
-        "id": class_id,
-        "issuerName": "Medical University of Graz",
-        "reviewStatus": "UNDER_REVIEW",
-        "hexBackgroundColor": "#007c31",
-        "logo": {
-            "sourceUri": {
-                "uri": settings.GOOGLE_WALLET_LOGO_URL
-            },
-            "contentDescription": {
-                "defaultValue": {
-                    "language": "en-US",
-                    "value": "MedUni Graz Logo"
-                }
-            }
-        },
-        "localizedIssuerName": {
-            "defaultValue": {
-                "language": "en-US",
-                "value": "Medical University of Graz"
-            },
-            "translations": [
-                {
-                    "language": "de-DE",
-                    "value": "Medizinische Universität Graz"
-                }
-            ]
-        }
-    }
-    
-    try:
-        creds = get_authenticated_credentials()
-        creds.refresh(Request())
-        
-        headers = {
-            'Authorization': f'Bearer {creds.token}',
-            'Content-Type': 'application/json'
-        }
-        
-        response = requests.post(
-            'https://walletobjects.googleapis.com/walletobjects/v1/genericClass',
-            headers=headers,
-            json=pass_class
-        )
-        
-        if response.status_code == 409:
-            url = f"https://walletobjects.googleapis.com/walletobjects/v1/genericClass/{class_id}"
-            response = requests.put(url, headers=headers, json=pass_class)
-        
-        if response.status_code in [200, 201]:
-            return class_id
-        else:
-            logger.warning(f"Pass class creation warning: {response.status_code} - {response.text}")
-            return class_id
+    """Create (or update) the shared Generic pass class. Idempotent."""
+    class_id = _class_id()
 
+    # Generic classes carry almost nothing visual — the look lives on the
+    # object. Keep this minimal; it just has to exist and be owned by us.
+    pass_class = {'id': class_id}
+
+    try:
+        session = _session()
+        resp = session.post(f"{WALLET_API}/genericClass", json=pass_class)
+        if resp.status_code == 409:  # already exists -> update
+            resp = session.put(
+                f"{WALLET_API}/genericClass/{class_id}", json=pass_class
+            )
+        if resp.status_code not in (200, 201):
+            logger.warning(
+                "Google Wallet class upsert returned %s: %s",
+                resp.status_code, resp.text,
+            )
     except Exception as e:
-        logger.error(f"Error creating Google Wallet pass class: {e}")
-        return class_id
+        logger.error("Error creating/updating Google Wallet class: %s", e)
+    return class_id
+
+
+def _localized(value, language='de-DE'):
+    """Wrap a plain string in Google's LocalizedString shape."""
+    return {'defaultValue': {'language': language, 'value': value}}
+
+
+def _upload_private_photo(employee):
+    """Upload the employee's photo as a Wallet 'secure private image'.
+
+    Returns a privateImageId (usable only by this employee's object, never a
+    public URL), or None if there's no photo or the upload fails."""
+    if not employee.photo:
+        return None
+    try:
+        with employee.photo.open('rb') as f:
+            data = f.read()
+        content_type = mimetypes.guess_type(employee.photo.name)[0] or 'image/jpeg'
+        url = f"{PRIVATE_IMAGE_UPLOAD_API}/{settings.GOOGLE_WALLET_ISSUER_ID}/uploadPrivateImage"
+        resp = _session().post(url, data=data, headers={'Content-Type': content_type})
+        if resp.status_code not in (200, 201):
+            logger.warning(
+                "Private photo upload failed for employee %s: %s %s",
+                employee.employee_id, resp.status_code, resp.text,
+            )
+            return None
+        return resp.json().get('privateImageId')
+    except Exception as e:
+        logger.error(
+            "Error uploading private photo for employee %s: %s",
+            employee.employee_id, e,
+        )
+        return None
 
 
 def generate_pass_object(employee):
-    """Generate Google Wallet pass object for an employee"""
+    """Build the Generic pass-object dict for an employee.
+
+    Field mapping mirrors the Apple layout (apple_pass.generate_pass_json):
+      header     <- full name           (Apple primary NAME)
+      subheader  <- OE short            (Apple secondary OE)
+      cardTitle  <- university name
+      textModulesData <- Bedienstetennummer, OE full, Dienstort, e-mail,
+                         OE phone, OE e-mail  (Apple aux + back fields)
+      imageModulesData <- photo (private upload, see module docstring)
+      barcode    <- Visitenkarte URL    (Apple QR)
+
+    Makes one extra REST call (a private-image upload) when the employee has
+    a photo — not a pure builder, unlike the Apple equivalent.
+    """
     issuer_id = settings.GOOGLE_WALLET_ISSUER_ID
-    class_suffix = 'meduni_employee_id'
-    class_id = f"{issuer_id}.{class_suffix}"
-    
+
     if not employee.google_pass_id:
-        employee.google_pass_id = f"{issuer_id}.{employee.employee_id}_{uuid.uuid4().hex[:8]}"
-        employee.save()
-    
+        employee.google_pass_id = (
+            f"{issuer_id}.{employee.employee_id}_{uuid.uuid4().hex[:8]}"
+        )
+        employee.save(update_fields=['google_pass_id'])
+
     pass_object = {
-        "id": employee.google_pass_id,
-        "classId": class_id,
-        "state": "ACTIVE",
-        "header": {
-            "defaultValue": {
-                "language": "de-DE",
-                "value": employee.full_name
-            }
-        },
-        "textModulesData": [
+        'id': employee.google_pass_id,
+        'classId': _class_id(),
+        'genericType': 'GENERIC_TYPE_UNSPECIFIED',
+        # state is ACTIVE here; Phase B flips it to EXPIRED on revocation.
+        'state': 'ACTIVE',
+        'hexBackgroundColor': HEX_BACKGROUND,
+        'cardTitle': _localized('Medizinische Universität Graz'),
+        'header': _localized(employee.full_name),
+        'textModulesData': [
             {
-                "id": "employee_id",
-                "header": "Bedienstetennummer",
-                "body": str(employee.employee_id)
-            }
-        ]
-    }
-    
-    if employee.photo:
-        pass_object["heroImage"] = {
-            "sourceUri": {
-                "uri": employee.photo.url
+                'id': 'employee_id',
+                'header': 'Bedienstetennummer',
+                'body': str(employee.employee_id),
             },
-            "contentDescription": {
-                "defaultValue": {
-                    "language": "de-DE",
-                    "value": f"Foto von {employee.full_name}"
-                }
-            }
+        ],
+    }
+
+    # Logo is optional: only include it if a URL is configured. Google fetches
+    # it from a PUBLIC https URL, so this must point at a reachable raster image
+    # (PNG/JPG, not SVG). In dev there's usually no public URL — leave it empty.
+    # In production point it at our own served static logo (e.g.
+    # https://<host>/static/idcard/logo.png).
+    logo_url = getattr(settings, 'GOOGLE_WALLET_LOGO_URL', '')
+    if logo_url:
+        pass_object['logo'] = {
+            'sourceUri': {'uri': logo_url},
+            'contentDescription': _localized('MedUni Graz Logo', 'en-US'),
         }
-    
+
+    private_image_id = _upload_private_photo(employee)
+    if private_image_id:
+        pass_object['imageModulesData'] = [{
+            'id': 'photo',
+            'mainImage': {
+                'privateImageId': private_image_id,
+                'contentDescription': _localized(
+                    f'Foto von {employee.full_name}', 'de-DE'
+                ),
+            },
+        }]
+
     if employee.organizational_unit_short:
-        pass_object["textModulesData"].append({
-            "id": "org_short",
-            "header": "OE",
-            "body": employee.organizational_unit_short,
-        })
+        pass_object['subheader'] = _localized(employee.organizational_unit_short)
 
+    text = pass_object['textModulesData']
     if employee.organizational_unit:
-        pass_object["textModulesData"].append({
-            "id": "org_unit",
-            "header": "Organisationseinheit",
-            "body": employee.organizational_unit
+        text.append({
+            'id': 'org_unit',
+            'header': 'Organisationseinheit',
+            'body': employee.organizational_unit,
         })
-
     if employee.dienstort:
-        pass_object["textModulesData"].append({
-            "id": "dienstort",
-            "header": "Dienstort",
-            "body": employee.dienstort,
+        text.append({
+            'id': 'dienstort',
+            'header': 'Dienstort',
+            'body': employee.dienstort,
         })
-
     if employee.email:
-        pass_object["textModulesData"].append({
-            "id": "email",
-            "header": "E-Mail",
-            "body": employee.email
+        text.append({
+            'id': 'email',
+            'header': 'E-Mail',
+            'body': employee.email,
         })
-
     if employee.organization_phone:
-        pass_object["textModulesData"].append({
-            "id": "oe_phone",
-            "header": "Telefon (OE)",
-            "body": employee.organization_phone,
+        text.append({
+            'id': 'oe_phone',
+            'header': 'Telefon (OE)',
+            'body': employee.organization_phone,
         })
-
     if employee.organization_email:
-        pass_object["textModulesData"].append({
-            "id": "oe_email",
-            "header": "E-Mail (OE)",
-            "body": employee.organization_email,
+        text.append({
+            'id': 'oe_email',
+            'header': 'E-Mail (OE)',
+            'body': employee.organization_email,
         })
 
     if employee.visitenkarte_url:
-        pass_object["barcode"] = {
-            "type": "QR_CODE",
-            "value": employee.visitenkarte_url
+        pass_object['barcode'] = {
+            'type': 'QR_CODE',
+            'value': employee.visitenkarte_url,
         }
-        
-        pass_object["linksModuleData"] = {
-            "uris": [
-                {
-                    "uri": employee.visitenkarte_url,
-                    "description": "Visitenkarte",
-                    "id": "visitenkarte"
-                }
-            ]
+        pass_object['linksModuleData'] = {
+            'uris': [{
+                'uri': employee.visitenkarte_url,
+                'description': 'Visitenkarte',
+                'id': 'visitenkarte',
+            }],
         }
-    
+
     return pass_object
 
 
 def create_or_update_pass_object(employee):
-    """Create or update pass object in Google Wallet"""
-    try:
-        creds = get_authenticated_credentials()
-        creds.refresh(Request())
-        
-        pass_object = generate_pass_object(employee)
-        
-        headers = {
-            'Authorization': f'Bearer {creds.token}',
-            'Content-Type': 'application/json'
-        }
-        
-        response = requests.post(
-            'https://walletobjects.googleapis.com/walletobjects/v1/genericObject',
-            headers=headers,
-            json=pass_object
-        )
-        
-        if response.status_code == 409:
-            url = f"https://walletobjects.googleapis.com/walletobjects/v1/genericObject/{employee.google_pass_id}"
-            response = requests.put(url, headers=headers, json=pass_object)
-        
-        return response.status_code in [200, 201]
+    """Push the employee's pass object to Google. Idempotent.
 
+    Phase B reuses this exact path to propagate live updates and revocation
+    (it just changes the object's fields / state before calling)."""
+    try:
+        pass_object = generate_pass_object(employee)
+        session = _session()
+        resp = session.post(f"{WALLET_API}/genericObject", json=pass_object)
+        if resp.status_code == 409:  # already exists -> update
+            resp = session.put(
+                f"{WALLET_API}/genericObject/{employee.google_pass_id}",
+                json=pass_object,
+            )
+        if resp.status_code not in (200, 201):
+            logger.warning(
+                "Google Wallet object upsert returned %s: %s",
+                resp.status_code, resp.text,
+            )
+            return False
+        return True
     except Exception as e:
-        logger.error(f"Error creating/updating Google Wallet pass object: {e}")
+        logger.error("Error creating/updating Google Wallet object: %s", e)
         return False
 
 
 def generate_save_url(employee):
-    """Generate 'Add to Google Wallet' URL"""
+    """Return a real signed 'Add to Google Wallet' link.
+
+    The pass class + object are upserted server-side first, then we hand the
+    user a JWT (RS256-signed with the service-account key) that references the
+    object by id. This replaces the old unsigned pay.google.com/.../save/<id>
+    string, which Google rejected."""
     create_or_update_pass_class()
     create_or_update_pass_object(employee)
-    save_url = f"https://pay.google.com/gp/v/save/{employee.google_pass_id}"
-    return save_url
+
+    creds = get_authenticated_credentials()
+    claims = {
+        'iss': creds.service_account_email,
+        'aud': 'google',
+        'typ': 'savetowallet',
+        'iat': int(time.time()),
+        'payload': {
+            'genericObjects': [{'id': employee.google_pass_id}],
+        },
+    }
+    token = google_jwt.encode(creds.signer, claims).decode('utf-8')
+    return f"https://pay.google.com/gp/v/save/{token}"
 
 
 def google_pass_download(request, employee_id):
-    """Generate Google Wallet pass for employee"""
+    """Render the 'Add to Google Wallet' page for an employee."""
     if not GOOGLE_WALLET_AVAILABLE:
         return HttpResponse(
             "<h1>Google Wallet Not Available</h1>"
             "<p>Required libraries not installed.</p>"
-            "<p>Run: <code>pip install google-auth google-auth-oauthlib google-api-python-client</code></p>",
-            status=500
+            "<p>Run: <code>pip install google-auth google-api-python-client</code></p>",
+            status=500,
         )
-    
+
+    import os
+    if not os.path.exists(_service_account_file()):
+        return HttpResponse(
+            "<h1>Google Wallet Not Configured</h1>"
+            "<p>The service-account key is missing. Place "
+            f"<code>{_service_account_file()}</code> on the server "
+            "(see PROJECT.md Phase A) and ensure its client_email is added "
+            "to the issuer in the Wallet Business Console.</p>",
+            status=503,
+        )
+
     try:
         employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
-
-        if not os.path.exists(_token_file()):
-            return HttpResponse(
-                "<h1>Google Wallet Authentication Required</h1>"
-                "<p>First-time setup needed. Run this command in terminal:</p>"
-                "<pre>python manage.py shell\n"
-                "from outpost.django.idcard.google_pass import get_authenticated_credentials\n"
-                "get_authenticated_credentials()</pre>"
-                "<p>This will open a browser to authenticate. After that, this page will work automatically.</p>",
-                status=401
-            )
-        
         save_url = generate_save_url(employee)
-        
         return render(request, 'idcard/google_wallet_add.html', {
             'employee': employee,
-            'save_url': save_url
+            'save_url': save_url,
         })
-        
     except Exception as e:
+        logger.exception("Google Wallet pass generation failed")
         return HttpResponse(
-            f"<h1>Error Generating Google Wallet Pass</h1>"
-            f"<p>{str(e)}</p>"
-            f"<p>Check that:</p>"
-            f"<ul>"
-            f"<li>GOOGLE_WALLET_ISSUER_ID is set in settings.py</li>"
-            f"<li>GOOGLE_OAUTH_CLIENT_FILE exists in credentials/</li>"
-            f"<li>Google Wallet API is enabled in Cloud Console</li>"
-            f"<li>You've authenticated once (see instructions above)</li>"
-            f"</ul>",
-            status=500
+            "<h1>Error Generating Google Wallet Pass</h1>"
+            f"<p>{e}</p>"
+            "<p>Check that:</p><ul>"
+            "<li>GOOGLE_WALLET_ISSUER_ID is set and matches the Business Console</li>"
+            "<li>GOOGLE_SERVICE_ACCOUNT_FILE exists and is valid JSON</li>"
+            "<li>The service account is added to the issuer (Developer access)</li>"
+            "<li>The Google Wallet API is enabled on the Cloud project</li>"
+            "</ul>",
+            status=500,
         )
 
 
 def update_google_pass(employee):
-    """Update existing Google Wallet pass"""
+    """Phase B entry point: re-push an existing pass object (no-op if none)."""
     if not employee.google_pass_id:
         return False
     return create_or_update_pass_object(employee)
