@@ -257,6 +257,14 @@ def _render_my_pass_preview(request, lang):
     page_url = request.build_absolute_uri(reverse("idcard:my_pass_preview"))
     qr_data_uri = _qr_data_uri(page_url) if device == "desktop" else None
 
+    # Decides whether to render the <img> at all, so a person with no usable
+    # portrait gets the placeholder rather than a broken image icon.
+    has_photo = bool(
+        employee_card.photo
+        or getattr(person, 'avatar_private', None)
+        or person.avatar
+    )
+
     return render(request, 'idcard/my_pass_preview.html', {
         'employee_card': employee_card,
         'person': person,
@@ -264,4 +272,57 @@ def _render_my_pass_preview(request, lang):
         'lang': lang,
         'other_lang': "en" if lang == "de" else "de",
         'qr_data_uri': qr_data_uri,
+        'has_photo': has_photo,
     })
+
+
+@login_required
+def my_pass_photo(request):
+    """Serve the logged-in user's own ID photo.
+
+    Deliberately takes no employee_id argument: the person is resolved from
+    the request's own session, so this can never be used to fetch someone
+    else's portrait. Prefers the bytes already stored on the EmployeeCard
+    (which came from `avatar_private`), and only falls back to a live
+    CAMPUSonline fetch if the card has no photo yet.
+
+    The preview page must not embed `person.avatar` directly — that public
+    CAMPUSonline URL returns HTML rather than an image for staff who marked
+    their photo internal-only, which is the same gap `avatar_private` solves
+    for the wallet passes themselves.
+    """
+    if not CAMPUSONLINE_AVAILABLE:
+        return HttpResponse(status=404)
+
+    username = request.user.username
+    if not username:
+        return HttpResponse(status=404)
+
+    try:
+        person = Person.objects.get(username=username)
+    except Person.DoesNotExist:
+        return HttpResponse(status=404)
+
+    data = None
+    try:
+        employee_card = EmployeeCard.objects.get(employee_id=person.id)
+    except EmployeeCard.DoesNotExist:
+        employee_card = None
+
+    if employee_card and employee_card.photo:
+        try:
+            with employee_card.photo.open('rb') as fh:
+                data = fh.read()
+        except (OSError, ValueError) as e:
+            logger.error(f"Could not read stored photo for person {person.id}: {e}")
+
+    if data is None:
+        data = _avatar_bytes(person)
+
+    if not data:
+        return HttpResponse(status=404)
+
+    response = HttpResponse(data, content_type='image/jpeg')
+    # Personal data: let the browser reuse it, but never a shared cache.
+    response['Cache-Control'] = 'private, max-age=300'
+    return response

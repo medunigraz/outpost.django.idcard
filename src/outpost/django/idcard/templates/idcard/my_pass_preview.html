@@ -5,67 +5,82 @@
 
 {% block header %}{% trans "Digital employee ID card" %}{% endblock %}
 
+{% block header_extra %}
+<a class="lang-switch-link" href="?lang={{ other_lang }}">{% if other_lang == 'de' %}Deutsch{% else %}English{% endif %}</a>
+{% endblock %}
+
 {% block content %}
-<div class="lang-switch">
-    <a href="?lang={{ other_lang }}">{% if other_lang == 'de' %}Deutsch{% else %}English{% endif %}</a>
-</div>
+<div class="pass-page">
+<div class="pass-card">
 
-<section class="hero card-row">
-    <div class="hero-photo">
-        {% if person.avatar %}
-            <img src="{{ person.avatar }}" alt="{% trans 'Your photo' %}">
-        {% else %}
-            <div class="hero-photo-placeholder">{% trans "No photo" %}</div>
-        {% endif %}
-    </div>
-    <div class="hero-info">
-        <h2>{{ person.first_name }} {{ person.last_name }}</h2>
-        <p class="muted">{{ person.email }}</p>
-        {% if employee_card.organizational_unit %}
-        <p class="muted">{{ employee_card.organizational_unit }}</p>
-        {% endif %}
-    </div>
-</section>
-
-<section class="action-card">
-    <h3>{% trans "Add your ID card to your phone" %}</h3>
-
-    {% if device == 'ios' %}
-        <p>{% trans "We detected an iPhone or iPad. Tap the button below to add your ID card to Apple Wallet." %}</p>
-        <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
-            {% trans "Add to Apple Wallet" %}
-        </a>
-    {% elif device == 'android' %}
-        <p>{% trans "We detected an Android device. Tap the button below to add your ID card to Google Wallet." %}</p>
-        <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
-            {% trans "Add to Google Wallet" %}
-        </a>
-    {% else %}
-        <p>{% trans "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera." %}</p>
-        {% if qr_data_uri %}
-        <div class="qr-block">
-            <img src="{{ qr_data_uri }}" alt="{% trans 'QR code to open this page on your phone' %}">
-            <p class="qr-caption">{% trans "Scan with your phone's camera" %}</p>
+    <section class="pass-section identity">
+        <div class="identity-photo">
+            {% if has_photo %}
+                <img src="{% url 'idcard:my_pass_photo' %}" alt="{% trans 'Your photo' %}">
+            {% else %}
+                <div class="identity-photo-placeholder">{% trans "No photo" %}</div>
+            {% endif %}
         </div>
-        {% endif %}
-        <details class="advanced">
-            <summary>{% trans "Or download directly" %}</summary>
-            <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
-                {% trans "Download .pkpass (Apple Wallet)" %}
-            </a>
-            <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
-                {% trans "Google Wallet link" %}
-            </a>
-        </details>
-    {% endif %}
-</section>
+        <div class="identity-info">
+            <h2 class="identity-name">{{ person.first_name }} {{ person.last_name }}</h2>
+            <p class="identity-meta">
+                {{ person.email }}
+                {% if employee_card.organizational_unit %}<br>{{ employee_card.organizational_unit }}{% endif %}
+            </p>
+        </div>
+    </section>
 
-<section class="info-card">
-    <h4>{% trans "About your digital ID card" %}</h4>
-    <ul>
-        <li>{% trans "Your card is for soft identification only (e.g. employee discounts at partner shops)." %}</li>
-        <li>{% trans "The QR code on the card links to your official MedUni business card (Visitenkarte)." %}</li>
-        <li>{% trans "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card." %}</li>
-    </ul>
-</section>
+    <section class="pass-section">
+        <h3 class="actions-title">{% trans "Add your ID card to your phone" %}</h3>
+
+        {% if device == 'ios' %}
+            <p class="actions-lede">{% trans "We detected an iPhone or iPad. Tap the button below to add your ID card to Apple Wallet." %}</p>
+            <div class="wallet-buttons">
+                <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
+                    {% trans "Add to Apple Wallet" %}
+                </a>
+                <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-secondary wallet-btn-google">
+                    {% trans "Add to Google Wallet" %}
+                </a>
+            </div>
+        {% elif device == 'android' %}
+            <p class="actions-lede">{% trans "We detected an Android device. Tap the button below to add your ID card to Google Wallet." %}</p>
+            <div class="wallet-buttons">
+                <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
+                    {% trans "Add to Google Wallet" %}
+                </a>
+                <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-secondary wallet-btn-apple">
+                    {% trans "Add to Apple Wallet" %}
+                </a>
+            </div>
+        {% else %}
+            <p class="actions-lede">{% trans "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera." %}</p>
+            <div class="wallet-buttons">
+                <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
+                    {% trans "Add to Apple Wallet" %}
+                </a>
+                <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
+                    {% trans "Add to Google Wallet" %}
+                </a>
+            </div>
+            {% if qr_data_uri %}
+            <div class="qr-row">
+                <img src="{{ qr_data_uri }}" alt="{% trans 'QR code to open this page on your phone' %}">
+                <p class="qr-caption">{% trans "Scan with your phone's camera" %}</p>
+            </div>
+            {% endif %}
+        {% endif %}
+    </section>
+
+    <section class="pass-section">
+        <h4 class="about-title">{% trans "About your digital ID card" %}</h4>
+        <ul class="about-list">
+            <li>{% trans "Your card is for soft identification only (e.g. employee discounts at partner shops)." %}</li>
+            <li>{% trans "The QR code on the card links to your official MedUni business card (Visitenkarte)." %}</li>
+            <li>{% trans "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card." %}</li>
+        </ul>
+    </section>
+
+</div>
+</div>
 {% endblock %}

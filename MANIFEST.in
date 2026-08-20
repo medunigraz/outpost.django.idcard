@@ -3,3 +3,4 @@ include LICENSE
 recursive-include src/outpost/django/idcard/templates *
 recursive-include src/outpost/django/idcard/static *
 recursive-include src/outpost/django/idcard/migrations *.py
+recursive-include src/outpost/django/idcard/locale *.po *.mo

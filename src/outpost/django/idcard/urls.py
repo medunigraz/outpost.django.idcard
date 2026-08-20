@@ -26,4 +26,5 @@ urlpatterns = [
     # SSO-based auto-generation (for end users)
     path('my-pass/', sso_views.my_pass_preview, name='my_pass_preview'),
     path('my-pass/generate/', sso_views.generate_my_pass, name='generate_my_pass'),
+    path('my-pass/photo/', sso_views.my_pass_photo, name='my_pass_photo'),
 ]

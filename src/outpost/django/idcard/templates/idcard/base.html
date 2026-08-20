@@ -19,10 +19,18 @@
         header {
             background: #007c31;
             color: white;
-            padding: 20px 0;
-            margin-bottom: 30px;
+            padding: 14px 0;
+            margin-bottom: 28px;
         }
-        header h1 { margin: 0; padding: 0 20px; }
+        header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+        header .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
 
         .card {
             background: white;
@@ -110,126 +118,190 @@
 
         /* ===== /my-pass landing page ===== */
 
-        .lang-switch { text-align: right; margin-bottom: 12px; font-size: 14px; }
-        .lang-switch a {
-            color: #007c31;
+        .lang-switch-link {
+            color: white;
             text-decoration: none;
-            border: 1px solid #007c31;
-            padding: 4px 12px;
-            border-radius: 4px;
-            transition: background-color 0.15s ease, color 0.15s ease;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            padding: 5px 13px;
+            border-radius: 999px;
+            font-size: 13px;
+            white-space: nowrap;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
         }
-        .lang-switch a:hover { background: #007c31; color: white; }
+        .lang-switch-link:hover {
+            background: rgba(255, 255, 255, 0.16);
+            border-color: white;
+            color: white;
+        }
+        .lang-switch-link:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 
-        .hero {
-            display: flex;
-            gap: 24px;
-            align-items: center;
+        .pass-page { max-width: 640px; margin: 0 auto; }
+
+        .pass-card {
             background: white;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            margin-bottom: 24px;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.06);
         }
-        .hero-photo img, .hero-photo-placeholder {
-            width: 120px;
-            height: 120px;
+
+        .pass-section { padding: 26px 28px; }
+        .pass-section + .pass-section { border-top: 1px solid #ececec; }
+
+        /* --- identity --- */
+        .identity { display: flex; gap: 20px; align-items: center; }
+        .identity-photo img, .identity-photo-placeholder {
+            width: 96px;
+            height: 96px;
             border-radius: 12px;
             object-fit: cover;
-            border: 3px solid #007c31;
+            display: block;
             background: #f0f0f0;
+        }
+        .identity-photo-placeholder {
             display: flex;
             align-items: center;
             justify-content: center;
+            text-align: center;
+            padding: 6px;
             color: #999;
-            font-size: 13px;
+            font-size: 12px;
+            line-height: 1.35;
         }
-        .hero-info h2 { margin: 0 0 6px 0; color: #007c31; font-size: 22px; }
-        .hero-info .muted { color: #666; margin: 0; font-size: 14px; line-height: 1.5; }
-
-        .action-card {
-            background: linear-gradient(135deg, #007c31 0%, #10a53c 100%);
-            color: white;
-            padding: 28px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 12px rgba(0, 124, 49, 0.2);
+        .identity-info { min-width: 0; }
+        .identity-name {
+            margin: 0 0 5px 0;
+            font-size: 21px;
+            font-weight: 600;
+            color: #1a1a1a;
+            line-height: 1.25;
         }
-        .action-card h3 { margin: 0 0 12px 0; color: white; font-size: 20px; }
-        .action-card p { margin: 0 0 18px 0; font-size: 15px; line-height: 1.5; opacity: 0.95; }
-        .action-card .muted { opacity: 0.8; font-size: 14px; }
+        .identity-meta {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
 
+        /* --- actions --- */
+        .actions-title {
+            margin: 0 0 6px 0;
+            font-size: 17px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        .actions-lede {
+            margin: 0 0 20px 0;
+            font-size: 14.5px;
+            color: #666;
+            line-height: 1.55;
+        }
+
+        .wallet-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
         .wallet-btn {
-            display: inline-block;
-            background: white;
-            color: #007c31;
-            padding: 14px 24px;
-            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1 1 auto;
+            min-width: 210px;
+            background: #007c31;
+            color: white;
+            padding: 13px 20px;
+            border-radius: 9px;
             text-decoration: none;
             font-weight: 600;
-            font-size: 15px;
-            margin: 6px 8px 6px 0;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            font-size: 14.5px;
+            line-height: 1.2;
+            transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
         }
-        .wallet-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
-        .wallet-btn-apple::before {
+        .wallet-btn:hover {
+            background: #10a53c;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 124, 49, 0.22);
+        }
+        .wallet-btn:focus-visible { outline: 3px solid #10a53c; outline-offset: 2px; }
+
+        /* The non-primary platform for the detected device: same size, quieter. */
+        .wallet-btn-secondary {
+            background: white;
+            color: #007c31;
+            border: 1.5px solid #cfe3d6;
+            padding: 11.5px 20px;
+        }
+        .wallet-btn-secondary:hover {
+            background: #f2f9f5;
+            color: #00612a;
+            border-color: #007c31;
+            box-shadow: 0 6px 16px rgba(0, 124, 49, 0.12);
+        }
+
+        .wallet-btn::before {
             content: "";
             display: inline-block;
-            width: 18px;
-            height: 18px;
-            margin-right: 8px;
-            vertical-align: -3px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007c31'%3E%3Cpath d='M17.05 20.28c-.98.95-2.05.94-3.08.43-1.09-.5-2.08-.55-3.24 0-1.43.71-2.18.56-3.06-.43-4.96-5.18-4.23-13.13 1.43-13.46 1.32.07 2.24.74 3.02.79 1.17-.24 2.29-.94 3.55-.84 1.5.12 2.62.7 3.36 1.74-3.1 1.88-2.36 5.98.5 7.13-.57 1.5-1.3 2.99-2.48 4.64M12.03 7.27c-.13-2.18 1.66-4 3.71-4.18.27 2.59-2.31 4.52-3.71 4.18'/%3E%3C/svg%3E");
+            width: 17px;
+            height: 17px;
+            margin-right: 9px;
+            flex: none;
             background-size: contain;
             background-repeat: no-repeat;
+            background-position: center;
+        }
+        .wallet-btn-apple::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M17.05 20.28c-.98.95-2.05.94-3.08.43-1.09-.5-2.08-.55-3.24 0-1.43.71-2.18.56-3.06-.43-4.96-5.18-4.23-13.13 1.43-13.46 1.32.07 2.24.74 3.02.79 1.17-.24 2.29-.94 3.55-.84 1.5.12 2.62.7 3.36 1.74-3.1 1.88-2.36 5.98.5 7.13-.57 1.5-1.3 2.99-2.48 4.64M12.03 7.27c-.13-2.18 1.66-4 3.71-4.18.27 2.59-2.31 4.52-3.71 4.18'/%3E%3C/svg%3E");
         }
         .wallet-btn-google::before {
-            content: "";
-            display: inline-block;
-            width: 18px;
-            height: 18px;
-            margin-right: 8px;
-            vertical-align: -3px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M21 7H3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm0 8H3V9h18v6z'/%3E%3C/svg%3E");
+        }
+        .wallet-btn-secondary.wallet-btn-apple::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007c31'%3E%3Cpath d='M17.05 20.28c-.98.95-2.05.94-3.08.43-1.09-.5-2.08-.55-3.24 0-1.43.71-2.18.56-3.06-.43-4.96-5.18-4.23-13.13 1.43-13.46 1.32.07 2.24.74 3.02.79 1.17-.24 2.29-.94 3.55-.84 1.5.12 2.62.7 3.36 1.74-3.1 1.88-2.36 5.98.5 7.13-.57 1.5-1.3 2.99-2.48 4.64M12.03 7.27c-.13-2.18 1.66-4 3.71-4.18.27 2.59-2.31 4.52-3.71 4.18'/%3E%3C/svg%3E");
+        }
+        .wallet-btn-secondary.wallet-btn-google::before {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007c31'%3E%3Cpath d='M21 7H3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm0 8H3V9h18v6z'/%3E%3C/svg%3E");
-            background-size: contain;
-            background-repeat: no-repeat;
         }
 
-        .qr-block {
-            background: white;
-            color: #333;
-            padding: 20px;
+        /* --- QR hand-off (desktop only) --- */
+        .qr-row {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-top: 22px;
+            padding-top: 20px;
+            border-top: 1px dashed #e4e4e4;
+        }
+        .qr-row img {
+            width: 124px;
+            height: 124px;
+            display: block;
             border-radius: 8px;
-            text-align: center;
-            margin: 12px 0 20px 0;
-            display: inline-block;
+            flex: none;
         }
-        .qr-block img { display: block; margin: 0 auto; max-width: 240px; height: auto; }
-        .qr-caption { margin: 12px 0 0 0 !important; color: #555 !important; font-size: 13px !important; opacity: 1 !important; }
+        .qr-caption { margin: 0; font-size: 13.5px; color: #666; line-height: 1.55; }
 
-        .advanced { margin-top: 8px; }
-        .advanced summary {
-            cursor: pointer;
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 13px;
-            padding: 6px 0;
+        /* --- about --- */
+        .about-title {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a1a;
         }
-        .advanced summary:hover { color: white; }
-        .advanced[open] { margin-top: 12px; }
-
-        .info-card {
-            background: white;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        .about-list {
+            margin: 0;
+            padding-left: 18px;
+            color: #666;
+            font-size: 13.5px;
+            line-height: 1.65;
         }
-        .info-card h4 { margin: 0 0 12px 0; color: #007c31; font-size: 16px; }
-        .info-card ul { margin: 0; padding-left: 20px; color: #555; font-size: 14px; line-height: 1.6; }
-        .info-card li { margin-bottom: 6px; }
+        .about-list li { margin-bottom: 5px; }
+        .about-list li:last-child { margin-bottom: 0; }
 
         @media (max-width: 600px) {
-            .hero { flex-direction: column; text-align: center; }
-            .wallet-btn { display: block; margin: 8px 0; }
+            .container { padding: 16px; }
+            header h1 { font-size: 17px; }
+            .pass-section { padding: 20px 18px; }
+            .identity { flex-direction: column; text-align: center; gap: 14px; }
+            .wallet-btn { flex: 1 1 100%; min-width: 0; }
+            .qr-row { flex-direction: column; text-align: center; }
         }
     </style>
 </head>
@@ -237,6 +309,7 @@
     <header>
         <div class="container">
             <h1>{% block header %}Digital ID Cards - MedUni Graz{% endblock %}</h1>
+            {% block header_extra %}{% endblock %}
         </div>
     </header>
 
