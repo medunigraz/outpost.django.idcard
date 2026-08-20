@@ -37,13 +37,9 @@
         </a>
     {% elif device == 'android' %}
         <p>{% trans "We detected an Android device. Tap the button below to add your ID card to Google Wallet." %}</p>
-        {% if card_exists %}
-            <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
-                {% trans "Add to Google Wallet" %}
-            </a>
-        {% else %}
-            <p class="muted">{% trans "Your card has not been generated yet — please use a desktop or iPhone for the first download." %}</p>
-        {% endif %}
+        <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
+            {% trans "Add to Google Wallet" %}
+        </a>
     {% else %}
         <p>{% trans "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera." %}</p>
         {% if qr_data_uri %}
@@ -57,11 +53,9 @@
             <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
                 {% trans "Download .pkpass (Apple Wallet)" %}
             </a>
-            {% if card_exists %}
             <a href="{% url 'idcard:google_pass' employee_card.employee_id %}" class="wallet-btn wallet-btn-google">
                 {% trans "Google Wallet link" %}
             </a>
-            {% endif %}
         </details>
     {% endif %}
 </section>

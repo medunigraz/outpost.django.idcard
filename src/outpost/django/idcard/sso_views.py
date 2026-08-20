@@ -148,6 +148,30 @@ def _avatar_bytes(person):
     return None
 
 
+def _sync_employee_card(person):
+    """Get-or-update the EmployeeCard snapshot for a person, syncing the photo too.
+
+    Shared by both wallet flows so a card exists (and Google Wallet becomes
+    available) regardless of which platform the user opens first — previously
+    only the Apple download path created this row, leaving Android-only users
+    stuck on first visit."""
+    employee_card, created = EmployeeCard.objects.update_or_create(
+        employee_id=person.id,
+        defaults=_person_to_card_defaults(person),
+    )
+
+    if not employee_card.photo:
+        avatar_data = _avatar_bytes(person)
+        if avatar_data:
+            employee_card.photo.save(
+                f'employee_{person.id}.jpg',
+                ContentFile(avatar_data, name=f'employee_{person.id}.jpg'),
+                save=True,
+            )
+
+    return employee_card
+
+
 @login_required
 def generate_my_pass(request):
     """Generate and download wallet pass for logged-in user"""
@@ -182,19 +206,7 @@ def generate_my_pass(request):
             status=403,
         )
 
-    employee_card, created = EmployeeCard.objects.update_or_create(
-        employee_id=person.id,
-        defaults=_person_to_card_defaults(person),
-    )
-
-    if not employee_card.photo:
-        avatar_data = _avatar_bytes(person)
-        if avatar_data:
-            employee_card.photo.save(
-                f'employee_{person.id}.jpg',
-                ContentFile(avatar_data, name=f'employee_{person.id}.jpg'),
-                save=True,
-            )
+    employee_card = _sync_employee_card(person)
 
     return apple_pass_download(request, employee_card.employee_id)
 
@@ -239,12 +251,7 @@ def _render_my_pass_preview(request, lang):
             'lang': lang,
         })
 
-    try:
-        employee_card = EmployeeCard.objects.get(employee_id=person.id)
-        card_exists = True
-    except EmployeeCard.DoesNotExist:
-        employee_card = None
-        card_exists = False
+    employee_card = _sync_employee_card(person)
 
     device = _detect_device(request.META.get("HTTP_USER_AGENT", ""))
     page_url = request.build_absolute_uri(reverse("idcard:my_pass_preview"))
@@ -253,7 +260,6 @@ def _render_my_pass_preview(request, lang):
     return render(request, 'idcard/my_pass_preview.html', {
         'employee_card': employee_card,
         'person': person,
-        'card_exists': card_exists,
         'device': device,
         'lang': lang,
         'other_lang': "en" if lang == "de" else "de",
