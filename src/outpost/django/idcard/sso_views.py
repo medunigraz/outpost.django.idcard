@@ -259,11 +259,15 @@ def _render_my_pass_preview(request, lang):
 
     # Decides whether to render the <img> at all, so a person with no usable
     # portrait gets the placeholder rather than a broken image icon.
-    has_photo = bool(
-        employee_card.photo
-        or getattr(person, 'avatar_private', None)
-        or person.avatar
-    )
+    #
+    # Deliberately keyed on the *stored* photo only. CAMPUSonline gives three
+    # cases: no photo at all; a photo visible only to logged-in users (public
+    # `avatar` URL returns HTML, bytes come from `avatar_private`); and a fully
+    # public photo. `_sync_employee_card` above has already resolved all three
+    # and PIL-validated the result, so a set `photo` means we genuinely have
+    # displayable bytes. Testing `person.avatar` here instead would report a
+    # photo for people who have only a non-image placeholder URL.
+    has_photo = bool(employee_card.photo)
 
     return render(request, 'idcard/my_pass_preview.html', {
         'employee_card': employee_card,

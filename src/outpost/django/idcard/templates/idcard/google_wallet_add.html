@@ -12,7 +12,7 @@
     
     {% if employee.photo %}
     <div style="margin: 20px 0;">
-        <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" 
+        <img src="{% url 'idcard:employee_photo' employee.employee_id %}" alt="{{ employee.full_name }}" 
              style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #007c31;">
     </div>
     {% endif %}
@@ -24,11 +24,15 @@
     <div style="margin: 30px 0; padding: 30px; background: #f8f9fa; border-radius: 12px;">
         <h3 style="margin-bottom: 20px;">Add your ID Card to Google Wallet</h3>
         
-        <a href="{{ save_url }}" target="_blank" rel="noopener noreferrer" 
-           style="display: inline-block; transition: transform 0.2s;">
-            <img src="https://pay.google.com/about/static_kcs/images/logos/google-pay-logo.svg" 
-                 alt="Add to Google Wallet" 
-                 style="height: 48px; border: 2px solid #007c31; border-radius: 8px; padding: 8px 16px; background: white;">
+        {# Never the Google *Pay* logo: wrong brand (users read it as paying for
+           something) and it was hotlinked from pay.google.com. Uses the same
+           button styling as the my-pass page. For launch, swap in Google's
+           official "Add to Google Wallet" artwork, self-hosted in
+           static/idcard/ - their brand guidelines require it for the save
+           action. #}
+        <a href="{{ save_url }}" target="_blank" rel="noopener noreferrer"
+           class="wallet-btn wallet-btn-google" style="flex: 0 0 auto;">
+            Add to Google Wallet
         </a>
         
         <p style="margin-top: 15px; color: #666; font-size: 14px;">

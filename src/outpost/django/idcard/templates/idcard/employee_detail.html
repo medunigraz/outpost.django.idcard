@@ -12,7 +12,7 @@
     
     <div style="margin: 20px 0;">
         {% if employee.photo %}
-        <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" style="max-width: 300px; border-radius: 8px;">
+        <img src="{% url 'idcard:employee_photo' employee.employee_id %}" alt="{{ employee.full_name }}" style="max-width: 300px; border-radius: 8px;">
         {% else %}
         <p style="color: #999;">No photo uploaded</p>
         {% endif %}

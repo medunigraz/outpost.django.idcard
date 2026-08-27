@@ -34,7 +34,7 @@ import time
 import uuid
 
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 
 from .models import EmployeeCard
@@ -315,7 +315,13 @@ def generate_save_url(employee):
 
 
 def google_pass_download(request, employee_id):
-    """Render the 'Add to Google Wallet' page for an employee."""
+    """Send the user to Google's signed save link for an employee's pass.
+
+    Normal users are redirected straight to Google so that "Add to Google
+    Wallet" on my-pass/ is a single click. The interstitial page is kept for
+    staff only, as an admin preview of someone else's pass — it is not shown
+    to the person adding their own card.
+    """
     if not GOOGLE_WALLET_AVAILABLE:
         return HttpResponse(
             "<h1>Google Wallet Not Available</h1>"
@@ -338,10 +344,12 @@ def google_pass_download(request, employee_id):
     try:
         employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
         save_url = generate_save_url(employee)
-        return render(request, 'idcard/google_wallet_add.html', {
-            'employee': employee,
-            'save_url': save_url,
-        })
+        if request.user.is_staff and request.GET.get('preview'):
+            return render(request, 'idcard/google_wallet_add.html', {
+                'employee': employee,
+                'save_url': save_url,
+            })
+        return HttpResponseRedirect(save_url)
     except Exception as e:
         logger.exception("Google Wallet pass generation failed")
         return HttpResponse(

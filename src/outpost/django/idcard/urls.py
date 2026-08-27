@@ -11,6 +11,7 @@ urlpatterns = [
     # Employee list and detail views (admin use)
     path('', views.employee_list, name='employee_list'),
     path('employee/<int:employee_id>/', views.employee_detail, name='employee_detail'),
+    path('employee/<int:employee_id>/photo/', views.employee_photo, name='employee_photo'),
     
     # API endpoints
     path('api/employee/<int:employee_id>/', views.employee_card_json, name='employee_json'),
