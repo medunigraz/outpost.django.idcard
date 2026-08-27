@@ -98,9 +98,7 @@ def apple_pass_preview(request, employee_id):
 def generate_google_pass(request, employee_id):
     """Redirect an employee to their Google Wallet save link.
 
-    Not staff-only: the "Add to Google Wallet" button on /my-pass/ sends the
-    employee here for their *own* card. Staff may pass any id (admin preview);
-    everyone else is restricted to their own.
+    Not staff-only: the my-pass button sends employees here for their own card.
     """
     _require_owner_or_staff(request, employee_id)
     from .google_pass import google_pass_download
@@ -108,11 +106,9 @@ def generate_google_pass(request, employee_id):
 
 
 def _requester_employee_id(request):
-    """EmployeeCard.employee_id belonging to the logged-in user, or None.
+    """The logged-in user's own employee_id, or None.
 
-    Person is the only link from a Django user to an EmployeeCard, so this
-    mirrors the lookup sso_views does. Imported lazily because the sandbox
-    harness runs without outpost.django.campusonline installed.
+    Imported lazily because the sandbox harness has no campusonline app.
     """
     try:
         from outpost.django.campusonline.models import Person
@@ -131,9 +127,7 @@ def _requester_employee_id(request):
 def _require_owner_or_staff(request, employee_id):
     """Raise Http404 unless the requester owns this card, or is staff.
 
-    404 rather than 403 on purpose: a 403 would confirm that a given
-    employee_id exists, which is precisely what walking the id range is
-    probing for.
+    404 rather than 403 so a probe can't confirm that an id exists.
     """
     if request.user.is_staff:
         return
@@ -143,12 +137,9 @@ def _require_owner_or_staff(request, employee_id):
 
 @login_required
 def employee_photo(request, employee_id):
-    """Serve an employee's ID photo to that employee, or to staff.
+    """Serve an employee's photo to that employee, or to staff.
 
-    Templates must never link a photo via MEDIA_URL: /media/ is served with
-    no authentication whatsoever, so `employee.photo.url` hands out a
-    permanently fetchable link to an internal-only portrait. That is the same
-    leak `avatar_private` exists to prevent.
+    Never link photos via MEDIA_URL; /media/ has no authentication.
     """
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
 

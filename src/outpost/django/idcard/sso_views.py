@@ -113,7 +113,7 @@ def _person_to_card_defaults(person):
 def _avatar_bytes(person):
     """Return raw image bytes for a CAMPUSonline person, or None.
 
-    Prefers `Person.avatar_private` — a BinaryField holding the photo bytes
+    Prefers `Person.avatar_private`, a BinaryField holding the photo bytes
     directly in CAMPUSonline. This bypasses the per-person public-visibility
     gate that makes the public `avatar` URL return an HTML page for staff
     who've marked their photo internal-only.
@@ -149,12 +149,11 @@ def _avatar_bytes(person):
 
 
 def _sync_employee_card(person):
-    """Get-or-update the EmployeeCard snapshot for a person, syncing the photo too.
+    """Create or refresh the EmployeeCard snapshot, fetching the photo if missing.
 
-    Shared by both wallet flows so a card exists (and Google Wallet becomes
-    available) regardless of which platform the user opens first — previously
-    only the Apple download path created this row, leaving Android-only users
-    stuck on first visit."""
+    Called on page load as well as download, so the row exists whichever
+    platform the employee arrives on.
+    """
     employee_card, created = EmployeeCard.objects.update_or_create(
         employee_id=person.id,
         defaults=_person_to_card_defaults(person),
@@ -257,16 +256,8 @@ def _render_my_pass_preview(request, lang):
     page_url = request.build_absolute_uri(reverse("idcard:my_pass_preview"))
     qr_data_uri = _qr_data_uri(page_url) if device == "desktop" else None
 
-    # Decides whether to render the <img> at all, so a person with no usable
-    # portrait gets the placeholder rather than a broken image icon.
-    #
-    # Deliberately keyed on the *stored* photo only. CAMPUSonline gives three
-    # cases: no photo at all; a photo visible only to logged-in users (public
-    # `avatar` URL returns HTML, bytes come from `avatar_private`); and a fully
-    # public photo. `_sync_employee_card` above has already resolved all three
-    # and PIL-validated the result, so a set `photo` means we genuinely have
-    # displayable bytes. Testing `person.avatar` here instead would report a
-    # photo for people who have only a non-image placeholder URL.
+    # Keyed on the stored photo only. person.avatar is set even for employees
+    # who have no photo, so testing it would render a broken image.
     has_photo = bool(employee_card.photo)
 
     return render(request, 'idcard/my_pass_preview.html', {
@@ -282,18 +273,10 @@ def _render_my_pass_preview(request, lang):
 
 @login_required
 def my_pass_photo(request):
-    """Serve the logged-in user's own ID photo.
+    """Serve the logged-in user's own photo.
 
-    Deliberately takes no employee_id argument: the person is resolved from
-    the request's own session, so this can never be used to fetch someone
-    else's portrait. Prefers the bytes already stored on the EmployeeCard
-    (which came from `avatar_private`), and only falls back to a live
-    CAMPUSonline fetch if the card has no photo yet.
-
-    The preview page must not embed `person.avatar` directly — that public
-    CAMPUSonline URL returns HTML rather than an image for staff who marked
-    their photo internal-only, which is the same gap `avatar_private` solves
-    for the wallet passes themselves.
+    Takes no employee_id: the person comes from the session, so it can never
+    return someone else's portrait.
     """
     if not CAMPUSONLINE_AVAILABLE:
         return HttpResponse(status=404)

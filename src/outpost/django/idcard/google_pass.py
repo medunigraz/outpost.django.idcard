@@ -1,31 +1,14 @@
 """
-Google Wallet pass generator (service-account auth).
+Google Wallet pass generator.
 
-Mirrors apple_pass.py but for Google Wallet. Unlike Apple — where we build and
-sign a file locally and the user downloads it — Google Wallet works by pushing
-the card data to Google's servers via REST, then handing the user a *signed
-link* ("Add to Google Wallet") that tells Google to add their object to their
-phone. Both the REST calls and the link signature use the same service-account
-key, so no interactive/browser auth is involved (it runs headless on sj074).
+Nothing is downloaded here, unlike Apple. The card is pushed to Google over
+REST and the user gets a signed "Add to Google Wallet" link. Both use the
+service-account key, so it runs headless.
 
-Hierarchy: issuer (the MedUni account, GOOGLE_WALLET_ISSUER_ID)
-            -> class  (one shared template, created once)
-            -> object (one per employee; PATCHed by Phase B to push updates /
-                       set state=EXPIRED for revocation).
+issuer -> class (one shared template) -> object (one per employee).
 
-Note on the Generic pass type: its visual fields (logo, background colour,
-title, header) live on the *object*, not the class — the class is a near-empty
-container.
-
-Note on the employee photo: Google's `logo`/`heroImage` fields need a PUBLIC
-https URL (Google's servers fetch it) — wrong for a private staff photo, and
-CAMPUSonline's public avatar URL only works for people who opted their photo
-public anyway (the same gap `avatar_private` solves for Apple). Instead we use
-Google's "Secure Private Images" feature: upload the photo bytes directly via
-an authenticated API call, get back a `privateImageId`, and reference that in
-`imageModulesData` — no public URL ever exists. That field only supports
-`imageModulesData` though, not `logo`/`heroImage`, so the photo shows as a
-detail-section image rather than the small avatar badge.
+Generic passes carry their visual fields on the object, not the class. The
+photo uses Secure Private Images so no public URL is ever created:
 https://developers.google.com/wallet/generic/use-cases/secure-private-images
 """
 import logging
@@ -45,7 +28,6 @@ try:
     from google.oauth2 import service_account
     from google.auth import jwt as google_jwt
     from google.auth.transport.requests import AuthorizedSession
-    import requests  # noqa: F401  (kept for exception types / parity)
     GOOGLE_WALLET_AVAILABLE = True
 except ImportError:
     GOOGLE_WALLET_AVAILABLE = False
@@ -94,7 +76,7 @@ def create_or_update_pass_class():
     """Create (or update) the shared Generic pass class. Idempotent."""
     class_id = _class_id()
 
-    # Generic classes carry almost nothing visual — the look lives on the
+    # Generic classes carry almost nothing visual; the look lives on the
     # object. Keep this minimal; it just has to exist and be owned by us.
     pass_class = {'id': class_id}
 
@@ -121,10 +103,7 @@ def _localized(value, language='de-DE'):
 
 
 def _upload_private_photo(employee):
-    """Upload the employee's photo as a Wallet 'secure private image'.
-
-    Returns a privateImageId (usable only by this employee's object, never a
-    public URL), or None if there's no photo or the upload fails."""
+    """Upload the photo as a secure private image, returning its id or None."""
     if not employee.photo:
         return None
     try:
@@ -149,19 +128,9 @@ def _upload_private_photo(employee):
 
 
 def generate_pass_object(employee):
-    """Build the Generic pass-object dict for an employee.
+    """Build the Generic pass-object dict, mirroring the Apple field layout.
 
-    Field mapping mirrors the Apple layout (apple_pass.generate_pass_json):
-      header     <- full name           (Apple primary NAME)
-      subheader  <- OE short            (Apple secondary OE)
-      cardTitle  <- university name
-      textModulesData <- Bedienstetennummer, OE full, Dienstort, e-mail,
-                         OE phone, OE e-mail  (Apple aux + back fields)
-      imageModulesData <- photo (private upload, see module docstring)
-      barcode    <- Visitenkarte URL    (Apple QR)
-
-    Makes one extra REST call (a private-image upload) when the employee has
-    a photo — not a pure builder, unlike the Apple equivalent.
+    Uploads the photo as a side effect when the employee has one.
     """
     issuer_id = settings.GOOGLE_WALLET_ISSUER_ID
 
@@ -191,7 +160,7 @@ def generate_pass_object(employee):
 
     # Logo is optional: only include it if a URL is configured. Google fetches
     # it from a PUBLIC https URL, so this must point at a reachable raster image
-    # (PNG/JPG, not SVG). In dev there's usually no public URL — leave it empty.
+    # (PNG/JPG, not SVG). In dev there's usually no public URL, so leave it empty.
     # In production point it at our own served static logo (e.g.
     # https://<host>/static/idcard/logo.png).
     logo_url = getattr(settings, 'GOOGLE_WALLET_LOGO_URL', '')
@@ -291,12 +260,7 @@ def create_or_update_pass_object(employee):
 
 
 def generate_save_url(employee):
-    """Return a real signed 'Add to Google Wallet' link.
-
-    The pass class + object are upserted server-side first, then we hand the
-    user a JWT (RS256-signed with the service-account key) that references the
-    object by id. This replaces the old unsigned pay.google.com/.../save/<id>
-    string, which Google rejected."""
+    """Upsert the class and object, then return a signed save link."""
     create_or_update_pass_class()
     create_or_update_pass_object(employee)
 
@@ -315,13 +279,7 @@ def generate_save_url(employee):
 
 
 def google_pass_download(request, employee_id):
-    """Send the user to Google's signed save link for an employee's pass.
-
-    Normal users are redirected straight to Google so that "Add to Google
-    Wallet" on my-pass/ is a single click. The interstitial page is kept for
-    staff only, as an admin preview of someone else's pass — it is not shown
-    to the person adding their own card.
-    """
+    """Redirect to the signed save link. Staff can add ?preview=1 for a page."""
     if not GOOGLE_WALLET_AVAILABLE:
         return HttpResponse(
             "<h1>Google Wallet Not Available</h1>"

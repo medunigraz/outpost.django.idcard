@@ -1,44 +1,42 @@
 # outpost.django.idcard
 
-Digital employee ID cards (Apple Wallet + Google Wallet) for the Medical
-University of Graz. Designed to be installed into the wider `outpost` Django
-project; depends on `outpost.django.campusonline` for employee data.
+Digital employee ID cards for the Medical University of Graz, as Apple Wallet
+and Google Wallet passes.
 
-An employee signs in, opens `/idcard/my-pass/`, and adds their card to their
-phone. The card shows live CAMPUSonline data (name, Bedienstetennummer,
-organisational unit, contact) and a QR code linking to their Visitenkarte.
-The card is **visual only** — nothing scans or verifies it.
+An employee signs in at `/idcard/my-pass/` and adds their card to their phone.
+The card shows their name, Bedienstetennummer, organisational unit and contact
+details, pulled live from CAMPUSonline, plus a QR code linking to their
+Visitenkarte. It is a visual card only. Nothing scans or verifies it.
 
-## What it maintains
+Installs into the wider `outpost` Django project and depends on
+`outpost.django.campusonline` for employee data.
 
-`EmployeeCard` is a denormalised snapshot of the CAMPUSonline `Person` record,
-keyed by `employee_id` (= `Person.id`). One row per employee who has requested
-a card. The intended lifecycle:
+## Data
 
-| Event | Effect on the card |
-|---|---|
-| Employee opens `/idcard/my-pass/` | Row is created (or refreshed) and their photo fetched — ✅ implemented |
-| Their CAMPUSonline details change | Pass already on the phone updates automatically — ⏳ not yet implemented |
-| They leave (`Person.employed` becomes false) | Pass is marked expired/voided on both platforms — ⏳ not yet implemented |
+`EmployeeCard` holds one row per employee who has requested a card. It is a
+denormalised snapshot of the CAMPUSonline `Person` record, keyed by
+`employee_id` (which is `Person.id`). The row is created or refreshed whenever
+the employee opens their card page.
 
-The last two are one mechanism, not two: a nightly reconcile job compares each
-issued card against CAMPUSonline and pushes changes to the device (Apple
-PassKit web service + APNs; Google object PATCH). Neither platform can force a
-pass off a phone — revocation means the live card shows as **expired**.
+Only employees are eligible. `Person.employed` is the single gate.
 
-Only employees are eligible; `Person.employed` is the single gate.
+Two things are planned but not built yet: pushing updates to a pass already on
+a phone when someone's details change, and marking a pass expired when someone
+leaves. Both are the same mechanism, a nightly job that compares each card
+against CAMPUSonline and pushes changes to the device. Note that neither Apple
+nor Google can delete a pass off a phone, so revocation means the card shows as
+expired.
 
-## Access control
+## Access
 
-Employees can only ever reach **their own** card. Everything that exposes
-another person's data is restricted to staff — the handful of developers and
-administrators who maintain the system, controlled by the Django `is_staff`
-flag (User → *Staff status* in the admin).
+Employees can only reach their own card. Everything that exposes another
+person's data is restricted to staff, meaning the developers and admins who
+maintain the system, via the Django `is_staff` flag.
 
-Photos are served exclusively through authenticated views. They are never
-linked via `MEDIA_URL`, which is unauthenticated, and never via CAMPUSonline's
-public avatar URL — that URL returns HTML rather than an image for staff who
-marked their photo internal-only.
+Photos are served only through authenticated views, never through `MEDIA_URL`
+(which has no authentication) and never through CAMPUSonline's public avatar
+URL (which returns HTML rather than an image for staff who keep their photo
+internal).
 
 ## Install
 
@@ -46,7 +44,7 @@ marked their photo internal-only.
 pip install -e .
 ```
 
-Add to `INSTALLED_APPS`. URLs auto-mount at `/idcard/`.
+Add to `INSTALLED_APPS`. URLs mount at `/idcard/`.
 
 ## Settings
 
@@ -63,52 +61,57 @@ GOOGLE_SERVICE_ACCOUNT_FILE
 GOOGLE_WALLET_LOGO_URL
 ```
 
-Apple needs a Pass Type ID certificate, key, and the WWDR cert.
+Apple needs a Pass Type ID certificate, its key, and the WWDR certificate.
 
-Google needs a **service-account** JSON key and the numeric Wallet Issuer ID.
-The service account's `client_email` must be granted access to the issuer in
-the Google Wallet Business Console. The same private key both authorises the
-REST calls and signs the "Add to Google Wallet" link, which is why a
-service account is required rather than a user OAuth flow.
+Google needs a service-account JSON key and the numeric Wallet Issuer ID. The
+service account's `client_email` must have access to the issuer in the Wallet
+Business Console. The same key both authorises the REST calls and signs the
+save link, which is why a service account is required rather than user OAuth.
 
-`GOOGLE_WALLET_LOGO_URL` is optional and must be a **public** raster URL if
-set — Google's servers fetch it. Leave it empty when no such URL exists.
+`GOOGLE_WALLET_LOGO_URL` is optional. If set it must be a public raster URL,
+since Google's servers fetch it. Leave it empty when there isn't one.
 
 ## URLs
 
 | Path | Purpose | Who |
 |---|---|---|
-| `/idcard/my-pass/` | The employee's own card | Any signed-in employee |
-| `/idcard/my-pass/generate/` | Download their `.pkpass` | Any signed-in employee |
-| `/idcard/my-pass/photo/` | Their own photo (takes no id) | Any signed-in employee |
-| `/idcard/google-pass/<id>/` | Redirect to the signed Google save link | Owner, or staff |
-| `/idcard/employee/<id>/photo/` | An employee's photo | Owner, or staff |
+| `/idcard/my-pass/` | The employee's own card | Any employee |
+| `/idcard/my-pass/generate/` | Download their `.pkpass` | Any employee |
+| `/idcard/my-pass/photo/` | Their own photo, takes no id | Any employee |
+| `/idcard/google-pass/<id>/` | Redirect to the Google save link | Owner or staff |
+| `/idcard/employee/<id>/photo/` | An employee's photo | Owner or staff |
 | `/idcard/` | Card list | Staff |
 | `/idcard/employee/<id>/` | Card detail | Staff |
 | `/idcard/api/employee/<id>/` | Card as JSON | Staff |
 | `/idcard/qr/<id>/` | QR code image | Staff |
-| `/idcard/apple-pass/<id>/` | Download any employee's `.pkpass` | Staff |
+| `/idcard/apple-pass/<id>/` | Any employee's `.pkpass` | Staff |
 | `/idcard/apple-pass-preview/<id>/` | Pass preview page | Staff |
 
-`/my-pass/` requires `outpost.django.campusonline`; otherwise returns 503.
+`?preview=1` on the Google URL renders a page instead of redirecting, for
+inspecting someone else's pass. Staff only.
 
-Adding `?preview=1` to `/idcard/google-pass/<id>/` renders an interstitial
-page instead of redirecting. Staff only — it exists for inspecting someone
-else's pass.
+Without `outpost.django.campusonline`, `/my-pass/` returns 503.
+
+## Management command
+
+Generate a signed `.pkpass` on disk, for handing someone a card directly:
+
+```bash
+python -m django generate_idcard_file <username>
+python -m django generate_idcard_file --search <surname>
+```
 
 ## Translations
 
-German is the primary language, English the fallback. Translations live in
-`locale/de/LC_MESSAGES/`. The compiled `django.mo` is committed deliberately:
-deployment is a git checkout plus an editable install with no build step, so
-an uncompiled catalogue would silently fall back to English everywhere.
-
-After editing `django.po`, recompile it:
+German is primary, English the fallback, in `locale/de/LC_MESSAGES/`. The
+compiled `django.mo` is committed on purpose: deployment is a checkout plus an
+editable install with no build step, so an uncompiled catalogue would silently
+fall back to English. After editing the `.po`:
 
 ```bash
-python3 -m django compilemessages -l de
+python -m django compilemessages -l de
 ```
 
 ## License
 
-BSD 2-Clause — Medical University of Graz.
+BSD 2-Clause, Medical University of Graz.

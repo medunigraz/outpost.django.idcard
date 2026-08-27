@@ -147,7 +147,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"Using already-stored photo: {card.photo.name}")
                 return
             self.stdout.write(self.style.WARNING(
-                f"Stored photo {card.photo.name} is not a valid image — "
+                f"Stored photo {card.photo.name} is not a valid image, "
                 f"discarding and re-fetching."
             ))
             card.photo.delete(save=True)
@@ -155,7 +155,7 @@ class Command(BaseCommand):
         data, source = self._fetch_avatar(person)
         if not data:
             self.stdout.write(self.style.WARNING(
-                "No usable photo found in CAMPUSonline — pass will use the "
+                "No usable photo found in CAMPUSonline, pass will use the "
                 "silhouette placeholder. To attach a real photo manually, "
                 "re-run with --photo /path/to/photo.jpg"
             ))
@@ -228,5 +228,5 @@ class Command(BaseCommand):
             )
         if qs.count() == 50:
             self.stdout.write(self.style.WARNING(
-                "(truncated at 50 results — refine your search)"
+                "(truncated at 50 results, refine your search)"
             ))

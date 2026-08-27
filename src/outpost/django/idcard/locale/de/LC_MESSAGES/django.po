@@ -35,11 +35,8 @@ msgstr "Wir haben ein Android-Gerät erkannt. Tippen Sie auf die Schaltfläche, 
 msgid "Add to Google Wallet"
 msgstr "Zu Google Wallet hinzufügen"
 
-msgid "Your card has not been generated yet — please use a desktop or iPhone for the first download."
-msgstr "Ihr Ausweis wurde noch nicht erstellt — bitte verwenden Sie für den ersten Download einen Desktop-Computer oder ein iPhone."
-
 msgid "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera."
-msgstr "Öffnen Sie diese Seite auf Ihrem Smartphone, um Ihren Ausweis in die Wallet-App zu laden — oder scannen Sie den untenstehenden QR-Code mit der Kamera Ihres Telefons."
+msgstr "Öffnen Sie diese Seite auf Ihrem Smartphone, um Ihren Ausweis in die Wallet-App zu laden, oder scannen Sie den untenstehenden QR-Code mit der Kamera Ihres Telefons."
 
 msgid "QR code to open this page on your phone"
 msgstr "QR-Code zum Öffnen dieser Seite auf Ihrem Smartphone"

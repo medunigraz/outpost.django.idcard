@@ -10,7 +10,7 @@ class EmployeeCard(models.Model):
     to generate Apple Wallet and Google Wallet passes, plus pass-issuance
     metadata (serial numbers, timestamps).
     """
-    # Identity — employee_id IS the CAMPUSonline Person.id (Bedienstetennummer)
+    # employee_id is the CAMPUSonline Person.id (Bedienstetennummer)
     employee_id = models.IntegerField(
         unique=True,
         help_text="Bedienstetennummer (CAMPUSonline Person ID)",
@@ -50,7 +50,7 @@ class EmployeeCard(models.Model):
     visitenkarte_url = models.URLField(
         max_length=500,
         blank=True,
-        help_text="Online business card URL — encoded in the QR",
+        help_text="Online business card URL, encoded in the QR",
     )
 
     # Pass identifiers

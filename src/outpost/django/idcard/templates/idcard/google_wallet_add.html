@@ -24,12 +24,8 @@
     <div style="margin: 30px 0; padding: 30px; background: #f8f9fa; border-radius: 12px;">
         <h3 style="margin-bottom: 20px;">Add your ID Card to Google Wallet</h3>
         
-        {# Never the Google *Pay* logo: wrong brand (users read it as paying for
-           something) and it was hotlinked from pay.google.com. Uses the same
-           button styling as the my-pass page. For launch, swap in Google's
-           official "Add to Google Wallet" artwork, self-hosted in
-           static/idcard/ - their brand guidelines require it for the save
-           action. #}
+        {# Not the Google Pay logo: wrong brand. Swap in Google's official
+           "Add to Google Wallet" artwork, self-hosted, before launch. #}
         <a href="{{ save_url }}" target="_blank" rel="noopener noreferrer"
            class="wallet-btn wallet-btn-google" style="flex: 0 0 auto;">
             Add to Google Wallet
