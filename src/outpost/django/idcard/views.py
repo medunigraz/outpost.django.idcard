@@ -4,6 +4,7 @@ Views for Digital ID Cards with Google Wallet support
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, Http404
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
 from .models import EmployeeCard
 import logging
 import qrcode
@@ -12,7 +13,7 @@ from io import BytesIO
 logger = logging.getLogger(__name__)
 
 
-@login_required
+@staff_member_required
 def employee_list(request):
     """List all employees with ID cards"""
     employees = EmployeeCard.objects.all()
@@ -21,7 +22,7 @@ def employee_list(request):
     })
 
 
-@login_required
+@staff_member_required
 def employee_detail(request, employee_id):
     """View details for a specific employee ID card"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
@@ -30,7 +31,7 @@ def employee_detail(request, employee_id):
     })
 
 
-@login_required
+@staff_member_required
 def employee_card_json(request, employee_id):
     """Return employee card data as JSON (for API access)"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
@@ -51,7 +52,7 @@ def employee_card_json(request, employee_id):
     return JsonResponse(data)
 
 
-@login_required
+@staff_member_required
 def generate_qr_code(request, employee_id):
     """Generate QR code for employee's Visitenkarte URL"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
@@ -77,14 +78,14 @@ def generate_qr_code(request, employee_id):
     return HttpResponse(buffer.getvalue(), content_type='image/png')
 
 
-@login_required
+@staff_member_required
 def generate_apple_pass(request, employee_id):
     """Generate Apple Wallet pass for employee"""
     from .apple_pass import apple_pass_download
     return apple_pass_download(request, employee_id)
 
 
-@login_required
+@staff_member_required
 def apple_pass_preview(request, employee_id):
     """Preview page before downloading Apple Wallet pass"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
@@ -95,7 +96,13 @@ def apple_pass_preview(request, employee_id):
 
 @login_required
 def generate_google_pass(request, employee_id):
-    """Generate Google Wallet pass for employee"""
+    """Redirect an employee to their Google Wallet save link.
+
+    Not staff-only: the "Add to Google Wallet" button on /my-pass/ sends the
+    employee here for their *own* card. Staff may pass any id (admin preview);
+    everyone else is restricted to their own.
+    """
+    _require_owner_or_staff(request, employee_id)
     from .google_pass import google_pass_download
     return google_pass_download(request, employee_id)
 
@@ -121,6 +128,19 @@ def _requester_employee_id(request):
         return None
 
 
+def _require_owner_or_staff(request, employee_id):
+    """Raise Http404 unless the requester owns this card, or is staff.
+
+    404 rather than 403 on purpose: a 403 would confirm that a given
+    employee_id exists, which is precisely what walking the id range is
+    probing for.
+    """
+    if request.user.is_staff:
+        return
+    if _requester_employee_id(request) != employee_id:
+        raise Http404
+
+
 @login_required
 def employee_photo(request, employee_id):
     """Serve an employee's ID photo to that employee, or to staff.
@@ -132,9 +152,7 @@ def employee_photo(request, employee_id):
     """
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
 
-    if not request.user.is_staff:
-        if _requester_employee_id(request) != employee.employee_id:
-            raise Http404
+    _require_owner_or_staff(request, employee.employee_id)
 
     if not employee.photo:
         raise Http404
