@@ -16,6 +16,7 @@ from django.http import HttpResponse
 from django.core.files.base import ContentFile
 from django.urls import reverse
 from django.utils import translation
+from django.views.decorators.vary import vary_on_headers
 from .models import EmployeeCard
 from .apple_pass import apple_pass_download
 
@@ -211,6 +212,7 @@ def generate_my_pass(request):
 
 
 @login_required
+@vary_on_headers("User-Agent")
 def my_pass_preview(request):
     """Show preview page before generating pass"""
     lang = _resolve_language(request)
