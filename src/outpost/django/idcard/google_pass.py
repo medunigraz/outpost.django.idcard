@@ -76,9 +76,44 @@ def create_or_update_pass_class():
     """Create (or update) the shared Generic pass class. Idempotent."""
     class_id = _class_id()
 
-    # Generic classes carry almost nothing visual; the look lives on the
-    # object. Keep this minimal; it just has to exist and be owned by us.
-    pass_class = {'id': class_id}
+    # Field values live on the object, but the card face layout is class
+    # level. Without this override the photo renders only in the details
+    # section. Google allows at most three rows; we use one.
+    pass_class = {
+        'id': class_id,
+        'classTemplateInfo': {
+            'cardTemplateOverride': {
+                'cardRowTemplateInfos': [
+                    {
+                        'twoItems': {
+                            'startItem': {
+                                'firstValue': {
+                                    'fields': [
+                                        {
+                                            'fieldPath':
+                                                "object.textModulesData"
+                                                "['employee_id']"
+                                        },
+                                    ],
+                                },
+                            },
+                            'endItem': {
+                                'firstValue': {
+                                    'fields': [
+                                        {
+                                            'fieldPath':
+                                                "object.imageModulesData"
+                                                "['photo']"
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    }
 
     try:
         session = _session()
