@@ -17,8 +17,12 @@ class EmployeeCard(models.Model):
     )
     first_name = models.CharField(max_length=200)
     last_name = models.CharField(max_length=200)
-    title_prefix = models.CharField(max_length=200, blank=True)
-    title_suffix = models.CharField(max_length=200, blank=True)
+    title_prefix = models.CharField(
+        max_length=200, blank=True, default='', db_default='',
+    )
+    title_suffix = models.CharField(
+        max_length=200, blank=True, default='', db_default='',
+    )
     email = models.EmailField(max_length=254, blank=True)
 
     # Organisation
@@ -30,15 +34,23 @@ class EmployeeCard(models.Model):
     organizational_unit_short = models.CharField(
         max_length=32,
         blank=True,
+        default='',
+        db_default='',
         help_text="OE short code (e.g. O-IT)",
     )
     dienstort = models.CharField(
         max_length=300,
         blank=True,
+        default='',
+        db_default='',
         help_text="Work address (Organization.address)",
     )
-    organization_phone = models.CharField(max_length=64, blank=True)
-    organization_email = models.EmailField(max_length=254, blank=True)
+    organization_phone = models.CharField(
+        max_length=64, blank=True, default='', db_default='',
+    )
+    organization_email = models.EmailField(
+        max_length=254, blank=True, default='', db_default='',
+    )
 
     # Photo + QR target
     photo = models.ImageField(
