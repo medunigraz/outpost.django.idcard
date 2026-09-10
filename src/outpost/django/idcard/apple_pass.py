@@ -293,10 +293,10 @@ def apple_pass_download(request, employee_id):
             f"<p>{escape(str(e))}</p>"
             f"<p>Check that:</p>"
             f"<ul>"
-            f"<li>APPLE_TEAM_ID is set in settings.py</li>"
-            f"<li>APPLE_PASS_TYPE_ID is set in settings.py</li>"
-            f"<li>Certificate files exist in credentials/ directory</li>"
-            f"<li>Certificate password is correct</li>"
+            f"<li>APPLE_TEAM_ID and APPLE_PASS_TYPE_ID are set in your Django settings</li>"
+            f"<li>APPLE_PASS_CERT_PATH, APPLE_PASS_KEY_PATH and APPLE_WWDR_PATH point at readable files</li>"
+            f"<li>APPLE_PASS_CERTIFICATE_PASSWORD matches the key</li>"
+            f"<li>the openssl binary is on PATH</li>"
             f"</ul>",
             status=500
         )

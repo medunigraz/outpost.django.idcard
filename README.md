@@ -33,26 +33,71 @@ can delete a pass off a phone, so revocation means showing it as expired.
 pip install -e .
 ```
 
-Add to `INSTALLED_APPS`. URLs mount at `/idcard/`.
+Add `outpost.django.idcard` to `INSTALLED_APPS`, then:
+
+```bash
+python -m django migrate idcard
+```
+
+URLs mount at `/idcard/` through the usual `outpost.django.urls` discovery.
+There is no `endpoints.py`; this app is HTML only, nothing on `/v1/`.
+
+`outpost.django.campusonline` must be installed — all employee data comes from
+its `Person` model. Without it `/idcard/my-pass/` returns 503 rather than
+failing at import.
+
+### Trying it out without any credentials
+
+Most of the app needs no secrets. Signed in as anyone with a CAMPUSonline
+`Person` record whose `employed` is true, `/idcard/my-pass/` will look you up,
+create your `EmployeeCard` row, pull your photo out of CAMPUSonline and render
+the page with both wallet buttons. That exercises the model, the migrations,
+the CAMPUSonline integration, the photo handling and the access rules.
+
+Only the two buttons themselves need credentials — the Apple certificate trio
+to sign a `.pkpass`, and the Google service-account key to sign a save link.
+With the settings below unset, both routes return a "not configured" page
+naming what is missing, rather than an error.
+
+One thing worth knowing before testing the Google button: the issuer is still
+in demo mode, so **only accounts holding Admin or Developer on the issuer, or
+explicitly added as test accounts in the Wallet Business Console, can save a
+pass at all**. A save that fails for anyone else is that, not a bug.
 
 ## Settings
 
-```python
-APPLE_PASS_TYPE_ID          GOOGLE_WALLET_ISSUER_ID
-APPLE_TEAM_ID               GOOGLE_SERVICE_ACCOUNT_FILE
-APPLE_PASS_CERT_PATH        GOOGLE_WALLET_LOGO_URL
-APPLE_PASS_KEY_PATH
-APPLE_WWDR_PATH
-APPLE_PASS_CERTIFICATE_PASSWORD
-```
+Required for Apple `.pkpass` generation:
 
-Apple needs a Pass Type ID certificate, its key, and the WWDR certificate.
+| Setting | What |
+|---|---|
+| `APPLE_PASS_TYPE_ID` | Pass Type identifier, e.g. `pass.at.medunigraz.idcard` |
+| `APPLE_TEAM_ID` | Apple Developer team identifier |
+| `APPLE_PASS_CERT_PATH` | Pass Type ID certificate, PEM |
+| `APPLE_PASS_KEY_PATH` | Its private key, PEM |
+| `APPLE_WWDR_PATH` | Apple WWDR intermediate certificate, PEM |
+| `APPLE_PASS_CERTIFICATE_PASSWORD` | Key password, empty string if none |
 
-Google needs a service-account JSON key and the numeric issuer ID, with the
-service account's `client_email` granted access to the issuer in the Wallet
-Business Console. The same key authorises the REST calls and signs the save
-link, which is why user OAuth will not do. `GOOGLE_WALLET_LOGO_URL` is
-optional, and must be a public raster URL if set.
+Signing shells out to `openssl`, so the binary must be on PATH.
+
+Required for Google Wallet:
+
+| Setting | What |
+|---|---|
+| `GOOGLE_WALLET_ISSUER_ID` | Numeric issuer ID from the Business Console |
+| `GOOGLE_SERVICE_ACCOUNT_FILE` | Path to the service-account JSON key |
+
+The service account's `client_email` must be granted access to the issuer in
+the Wallet Business Console. The same key both authorises the REST calls and
+signs the save link, which is why user OAuth will not do — it cannot run
+headless.
+
+Optional: `GOOGLE_WALLET_LOGO_URL`, which must be a **public** raster URL
+(PNG/JPG, not SVG) because Google fetches it. Leave it empty in development;
+Google substitutes a generated letter monogram.
+
+`MEDIA_ROOT` and `MEDIA_URL` must be set, since stored photos are written
+through Django's file storage. Photos are only ever served through the
+authenticated views, never linked via `MEDIA_URL`.
 
 ## URLs
 

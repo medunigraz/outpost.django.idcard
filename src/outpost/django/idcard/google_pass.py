@@ -19,6 +19,7 @@ import uuid
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
+from django.utils.html import escape
 
 from .models import EmployeeCard
 
@@ -46,8 +47,16 @@ HEX_BACKGROUND = '#007c31'
 _credentials = None
 
 
+REQUIRED_SETTINGS = ('GOOGLE_WALLET_ISSUER_ID', 'GOOGLE_SERVICE_ACCOUNT_FILE')
+
+
+def _missing_settings():
+    """Which required settings a fresh install has not configured yet."""
+    return [n for n in REQUIRED_SETTINGS if not getattr(settings, n, None)]
+
+
 def _service_account_file():
-    return str(settings.GOOGLE_SERVICE_ACCOUNT_FILE)
+    return str(getattr(settings, 'GOOGLE_SERVICE_ACCOUNT_FILE', ''))
 
 
 def get_authenticated_credentials():
@@ -330,14 +339,24 @@ def google_pass_download(request, employee_id):
             status=500,
         )
 
+    missing = _missing_settings()
+    if missing:
+        names = ", ".join(missing)
+        return HttpResponse(
+            "<h1>Google Wallet Not Configured</h1>"
+            f"<p>Unset in your Django settings: <code>{escape(names)}</code>.</p>"
+            "<p>See the Settings section of the idcard README.</p>",
+            status=503,
+        )
+
     import os
     if not os.path.exists(_service_account_file()):
         return HttpResponse(
             "<h1>Google Wallet Not Configured</h1>"
             "<p>The service-account key is missing. Place "
-            f"<code>{_service_account_file()}</code> on the server "
-            "(see PROJECT.md Phase A) and ensure its client_email is added "
-            "to the issuer in the Wallet Business Console.</p>",
+            f"<code>{escape(_service_account_file())}</code> on the server "
+            "and ensure its client_email is added to the issuer in the Wallet "
+            "Business Console.</p>",
             status=503,
         )
 
@@ -354,7 +373,7 @@ def google_pass_download(request, employee_id):
         logger.exception("Google Wallet pass generation failed")
         return HttpResponse(
             "<h1>Error Generating Google Wallet Pass</h1>"
-            f"<p>{e}</p>"
+            f"<p>{escape(str(e))}</p>"
             "<p>Check that:</p><ul>"
             "<li>GOOGLE_WALLET_ISSUER_ID is set and matches the Business Console</li>"
             "<li>GOOGLE_SERVICE_ACCOUNT_FILE exists and is valid JSON</li>"
