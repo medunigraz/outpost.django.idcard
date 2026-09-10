@@ -27,6 +27,7 @@ credentials/
 *.p12
 *.cer
 google_oauth_client.json
+google_service_account.json
 google_wallet_token.json
 
 .claude/

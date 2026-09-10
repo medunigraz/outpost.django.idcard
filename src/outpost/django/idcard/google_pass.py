@@ -40,8 +40,8 @@ PRIVATE_IMAGE_UPLOAD_API = (
 )
 CLASS_SUFFIX = 'meduni_employee_id'
 
-# Match the Apple card's green (apple_pass.py uses rgb(0, 124, 60)).
-HEX_BACKGROUND = '#007c3c'
+# MedUni corporate dark green, same colour the Apple pass sets as rgb(0, 124, 49).
+HEX_BACKGROUND = '#007c31'
 
 _credentials = None
 
@@ -297,7 +297,14 @@ def create_or_update_pass_object(employee):
 def generate_save_url(employee):
     """Upsert the class and object, then return a signed save link."""
     create_or_update_pass_class()
-    create_or_update_pass_object(employee)
+    if not create_or_update_pass_object(employee):
+        # Signing a link to an object Google does not have would hand the user
+        # an opaque Wallet error instead of ours. The logged warning from the
+        # upsert carries Google's response body.
+        raise RuntimeError(
+            f"Google Wallet object upsert failed for employee "
+            f"{employee.employee_id}; see the log for Google's response."
+        )
 
     creds = get_authenticated_credentials()
     claims = {

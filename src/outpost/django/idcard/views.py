@@ -1,5 +1,7 @@
 """
-Views for Digital ID Cards with Google Wallet support
+Staff-facing views, plus the shared owner-or-staff access check.
+
+The self-service employee flow lives in sso_views.py.
 """
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, Http404
@@ -15,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 @staff_member_required
 def employee_list(request):
-    """List all employees with ID cards"""
     employees = EmployeeCard.objects.all()
     return render(request, 'idcard/employee_list.html', {
         'employees': employees
@@ -24,7 +25,6 @@ def employee_list(request):
 
 @staff_member_required
 def employee_detail(request, employee_id):
-    """View details for a specific employee ID card"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     return render(request, 'idcard/employee_detail.html', {
         'employee': employee
@@ -33,7 +33,6 @@ def employee_detail(request, employee_id):
 
 @staff_member_required
 def employee_card_json(request, employee_id):
-    """Return employee card data as JSON (for API access)"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     
     data = {
@@ -54,7 +53,6 @@ def employee_card_json(request, employee_id):
 
 @staff_member_required
 def generate_qr_code(request, employee_id):
-    """Generate QR code for employee's Visitenkarte URL"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     
     if not employee.visitenkarte_url:
@@ -80,14 +78,12 @@ def generate_qr_code(request, employee_id):
 
 @staff_member_required
 def generate_apple_pass(request, employee_id):
-    """Generate Apple Wallet pass for employee"""
     from .apple_pass import apple_pass_download
     return apple_pass_download(request, employee_id)
 
 
 @staff_member_required
 def apple_pass_preview(request, employee_id):
-    """Preview page before downloading Apple Wallet pass"""
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     return render(request, 'idcard/apple_pass_preview.html', {
         'employee': employee

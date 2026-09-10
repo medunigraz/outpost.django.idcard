@@ -1,8 +1,9 @@
 """
-Apple Wallet Pass Generator
+Apple Wallet pass generator.
 
-Pure Python implementation using OpenSSL for signing.
-MedUni corporate design with larger photos and cleaner layout.
+Builds a .pkpass in memory: pass.json plus images, a manifest of SHA1 hashes,
+and a detached PKCS#7 signature over that manifest. Signing shells out to the
+openssl binary, so the server needs one on PATH.
 """
 import json
 import hashlib
@@ -15,6 +16,7 @@ from io import BytesIO
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from django.conf import settings
+from django.utils.html import escape
 from PIL import Image, ImageDraw, UnidentifiedImageError
 from .models import EmployeeCard
 
@@ -82,7 +84,7 @@ def generate_pass_json(employee):
         "teamIdentifier": settings.APPLE_TEAM_ID,
         "organizationName": "MedUni Graz",
         "description": f"MedUni Graz Employee ID - {employee.full_name}",
-        "backgroundColor": "rgb(0, 124, 60)",
+        "backgroundColor": "rgb(0, 124, 49)",
         "foregroundColor": "rgb(255, 255, 255)",
         "labelColor": "rgb(255, 255, 255)",
         "generic": {
@@ -168,7 +170,6 @@ def create_manifest(files_dict):
 def sign_manifest(manifest_json):
     """Sign manifest using OpenSSL to create PKCS7 signature"""
     try:
-        # Use paths from settings
         cert_path = str(settings.APPLE_PASS_CERT_PATH)
         key_path = str(settings.APPLE_PASS_KEY_PATH)
         wwdr_path = str(settings.APPLE_WWDR_PATH)
@@ -210,27 +211,21 @@ def sign_manifest(manifest_json):
 
 
 def generate_apple_pass(employee_id, include_signature=True):
-    """
-    Generate complete Apple Wallet pass (.pkpass file)
-    
-    Args:
-        employee_id: Employee ID
-        include_signature: Sign pass with certificates if True
-    
-    Returns:
-        BytesIO containing the .pkpass file
+    """Build the .pkpass for an employee and return it as a BytesIO.
+
+    Pass `include_signature=False` to skip signing, which produces a file
+    Wallet will reject but which can still be unzipped and inspected.
     """
     employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
     pass_files = {}
-    
-    # 1. pass.json
+
     pass_data = generate_pass_json(employee)
     pass_json = json.dumps(pass_data, indent=2).encode('utf-8')
     pass_files['pass.json'] = pass_json
-    
+
     static_dir = os.path.join(os.path.dirname(__file__), 'static', 'idcard')
-    
-    # 2. Icons (required)
+
+    # icon.png is the only image Apple requires.
     icon_path = os.path.join(static_dir, 'icon.png')
     if os.path.exists(icon_path):
         with open(icon_path, 'rb') as f:
@@ -241,7 +236,6 @@ def generate_apple_pass(employee_id, include_signature=True):
         with open(icon_2x_path, 'rb') as f:
             pass_files['icon@2x.png'] = f.read()
     
-    # 3. Logo
     logo_path = os.path.join(static_dir, 'logo.png')
     if os.path.exists(logo_path):
         with open(logo_path, 'rb') as f:
@@ -252,26 +246,19 @@ def generate_apple_pass(employee_id, include_signature=True):
             with open(logo_2x_path, 'rb') as f:
                 pass_files['logo@2x.png'] = f.read()
     
-    # 4. Thumbnail (real photo or silhouette placeholder) at Apple Wallet's
-    #    fixed thumbnail dimensions: 90×90pt (180×180 @2x).
+    # Apple fixes the thumbnail at 90×90pt, so 180×180 for the @2x variant.
     for size, key in ((90, 'thumbnail.png'), (180, 'thumbnail@2x.png')):
         thumb = _build_thumbnail(employee, size)
         buf = BytesIO()
         thumb.save(buf, format='PNG')
         pass_files[key] = buf.getvalue()
-    
-    # 5. Manifest
+
     manifest_json = create_manifest(pass_files)
-    
-    # 6. Signature
+
     signature = None
     if include_signature:
-        try:
-            signature = sign_manifest(manifest_json)
-        except Exception as e:
-            raise Exception(f"Failed to sign pass: {str(e)}")
-    
-    # 7. Build .pkpass file
+        signature = sign_manifest(manifest_json)
+
     pkpass_buffer = BytesIO()
     with zipfile.ZipFile(pkpass_buffer, 'w', zipfile.ZIP_DEFLATED) as pkpass:
         for filename, content in pass_files.items():
@@ -285,22 +272,25 @@ def generate_apple_pass(employee_id, include_signature=True):
 
 
 def apple_pass_download(request, employee_id):
-    """Download Apple Wallet pass for employee"""
+    """Serve the signed .pkpass as a download."""
     try:
         pass_data = generate_apple_pass(employee_id, include_signature=True)
-        
+
         response = HttpResponse(
             pass_data.getvalue(),
             content_type='application/vnd.apple.pkpass'
         )
         response['Content-Disposition'] = f'attachment; filename="meduni_id_{employee_id}.pkpass"'
-        
+
         return response
-        
+
     except Exception as e:
+        logger.exception(
+            "Apple Wallet pass generation failed for employee %s", employee_id
+        )
         return HttpResponse(
             f"<h1>Error generating pass</h1>"
-            f"<p>{str(e)}</p>"
+            f"<p>{escape(str(e))}</p>"
             f"<p>Check that:</p>"
             f"<ul>"
             f"<li>APPLE_TEAM_ID is set in settings.py</li>"

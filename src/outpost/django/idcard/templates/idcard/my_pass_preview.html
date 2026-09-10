@@ -22,7 +22,8 @@
             {% endif %}
         </div>
         <div class="identity-info">
-            <h2 class="identity-name">{{ person.first_name }} {{ person.last_name }}</h2>
+            {# full_name, not first+last: it carries the academic title, so the page matches the pass. #}
+            <h2 class="identity-name">{{ employee_card.full_name }}</h2>
             <p class="identity-meta">
                 {{ person.email }}
                 {% if employee_card.organizational_unit %}<br>{{ employee_card.organizational_unit }}{% endif %}

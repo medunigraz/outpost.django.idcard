@@ -1,13 +1,9 @@
-"""
-Django admin configuration for idcard
-"""
 from django.contrib import admin
 from .models import EmployeeCard
 
 
 @admin.register(EmployeeCard)
 class EmployeeCardAdmin(admin.ModelAdmin):
-    """Admin interface for EmployeeCard"""
     list_display = (
         'employee_id',
         'full_name',
@@ -45,12 +41,10 @@ class EmployeeCardAdmin(admin.ModelAdmin):
     )
     
     def full_name(self, obj):
-        """Display full name in list view"""
         return obj.full_name
     full_name.short_description = 'Name'
-    
+
     def has_photo(self, obj):
-        """Indicate if employee has a photo"""
         return bool(obj.photo)
     has_photo.boolean = True
     has_photo.short_description = 'Photo'
