@@ -335,7 +335,7 @@ def google_pass_download(request, employee_id):
         return HttpResponse(
             "<h1>Google Wallet Not Available</h1>"
             "<p>Required libraries not installed.</p>"
-            "<p>Run: <code>pip install google-auth google-api-python-client</code></p>",
+            "<p>Run: <code>pip install google-auth</code></p>",
             status=500,
         )
 
