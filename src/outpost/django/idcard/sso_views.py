@@ -10,7 +10,7 @@ import re
 
 import qrcode
 import requests
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.core.files.base import ContentFile
@@ -182,22 +182,7 @@ def generate_my_pass(request):
             status=503
         )
 
-    username = request.user.username
-    if not username:
-        return HttpResponse(
-            "<h1>Error</h1>"
-            "<p>Could not determine your username from login.</p>",
-            status=400
-        )
-
-    try:
-        person = Person.objects.get(username=username)
-    except Person.DoesNotExist:
-        return HttpResponse(
-            f"<h1>Person Not Found</h1>"
-            f"<p>No CAMPUSonline person record found for username: {username}</p>",
-            status=404
-        )
+    person = get_object_or_404(Person, username=request.user.username)
 
     if not person.employed:
         return HttpResponse(
