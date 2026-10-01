@@ -1,7 +1,0 @@
-Django>=5.0
-Pillow
-qrcode[pil]
-requests
-
-# Google Wallet API (OAuth2 authentication)
-google-auth
