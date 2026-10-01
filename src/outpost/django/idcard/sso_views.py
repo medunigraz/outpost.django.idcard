@@ -17,6 +17,7 @@ from django.core.files.base import ContentFile
 from django.urls import reverse
 from django.utils import translation
 from django.views.decorators.vary import vary_on_headers
+from outpost.django.campusonline.models import Person
 from .models import EmployeeCard
 from .apple_pass import apple_pass_download
 
@@ -61,13 +62,6 @@ def _qr_data_uri(text, box_size=8):
     img.save(buf, format="PNG")
     encoded = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/png;base64,{encoded}"
-
-try:
-    from outpost.django.campusonline.models import Person
-    CAMPUSONLINE_AVAILABLE = True
-except ImportError:
-    CAMPUSONLINE_AVAILABLE = False
-    Person = None
 
 
 def _localized(value, lang='de'):
@@ -175,13 +169,6 @@ def _sync_employee_card(person):
 @login_required
 def generate_my_pass(request):
     """Generate and download wallet pass for logged-in user"""
-    if not CAMPUSONLINE_AVAILABLE:
-        return HttpResponse(
-            "<h1>SSO Not Available</h1>"
-            "<p>This feature requires the full outpost.django infrastructure.</p>",
-            status=503
-        )
-
     person = get_object_or_404(Person, username=request.user.username)
 
     if not person.employed:
@@ -206,13 +193,6 @@ def my_pass_preview(request):
 
 
 def _render_my_pass_preview(request, lang):
-    if not CAMPUSONLINE_AVAILABLE:
-        return render(request, 'idcard/error.html', {
-            'error_title': 'SSO Not Available',
-            'error_message': 'This feature requires the full outpost.django infrastructure.',
-            'lang': lang,
-        })
-
     username = request.user.username
     if not username:
         return render(request, 'idcard/error.html', {
@@ -265,9 +245,6 @@ def my_pass_photo(request):
     Takes no employee_id: the person comes from the session, so it can never
     return someone else's portrait.
     """
-    if not CAMPUSONLINE_AVAILABLE:
-        return HttpResponse(status=404)
-
     username = request.user.username
     if not username:
         return HttpResponse(status=404)

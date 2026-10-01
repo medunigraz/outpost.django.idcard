@@ -20,18 +20,13 @@ from django.conf import settings
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.utils.html import escape
+from google.auth import jwt as google_jwt
+from google.auth.transport.requests import AuthorizedSession
+from google.oauth2 import service_account
 
 from .models import EmployeeCard
 
 logger = logging.getLogger(__name__)
-
-try:
-    from google.oauth2 import service_account
-    from google.auth import jwt as google_jwt
-    from google.auth.transport.requests import AuthorizedSession
-    GOOGLE_WALLET_AVAILABLE = True
-except ImportError:
-    GOOGLE_WALLET_AVAILABLE = False
 
 
 SCOPES = ['https://www.googleapis.com/auth/wallet_object.issuer']
@@ -331,14 +326,6 @@ def generate_save_url(employee):
 
 def google_pass_download(request, employee_id):
     """Redirect to the signed save link. Staff can add ?preview=1 for a page."""
-    if not GOOGLE_WALLET_AVAILABLE:
-        return HttpResponse(
-            "<h1>Google Wallet Not Available</h1>"
-            "<p>Required libraries not installed.</p>"
-            "<p>Run: <code>pip install google-auth</code></p>",
-            status=500,
-        )
-
     missing = _missing_settings()
     if missing:
         names = ", ".join(missing)

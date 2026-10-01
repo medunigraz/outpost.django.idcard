@@ -24,17 +24,10 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 from PIL import Image, UnidentifiedImageError
 
+from outpost.django.campusonline.models import Person
 from outpost.django.idcard.apple_pass import generate_apple_pass
 from outpost.django.idcard.models import EmployeeCard
 from outpost.django.idcard.sso_views import _person_to_card_defaults
-
-try:
-    from outpost.django.campusonline.models import Person
-except ImportError as exc:
-    Person = None
-    _IMPORT_ERROR = exc
-else:
-    _IMPORT_ERROR = None
 
 
 def _is_valid_image_file(path):
@@ -82,11 +75,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, username, search, output, photo, **options):
-        if Person is None:
-            raise CommandError(
-                f"outpost.django.campusonline is not importable: {_IMPORT_ERROR}"
-            )
-
         if search:
             self._do_search(search)
             return

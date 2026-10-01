@@ -7,6 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, Http404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
+from outpost.django.campusonline.models import Person
 from .models import EmployeeCard
 import logging
 import qrcode
@@ -102,15 +103,7 @@ def generate_google_pass(request, employee_id):
 
 
 def _requester_employee_id(request):
-    """The logged-in user's own employee_id, or None.
-
-    Imported lazily because the sandbox harness has no campusonline app.
-    """
-    try:
-        from outpost.django.campusonline.models import Person
-    except ImportError:
-        return None
-
+    """The logged-in user's own employee_id, or None."""
     username = request.user.username
     if not username:
         return None
