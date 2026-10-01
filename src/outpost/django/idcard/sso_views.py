@@ -223,10 +223,6 @@ def _render_my_pass_preview(request, lang):
     page_url = request.build_absolute_uri(reverse("idcard:my_pass_preview"))
     qr_data_uri = _qr_data_uri(page_url) if device == "desktop" else None
 
-    # Keyed on the stored photo only. person.avatar is set even for employees
-    # who have no photo, so testing it would render a broken image.
-    has_photo = bool(employee_card.photo)
-
     return render(request, 'idcard/my_pass_preview.html', {
         'employee_card': employee_card,
         'person': person,
@@ -234,46 +230,4 @@ def _render_my_pass_preview(request, lang):
         'lang': lang,
         'other_lang': "en" if lang == "de" else "de",
         'qr_data_uri': qr_data_uri,
-        'has_photo': has_photo,
     })
-
-
-@login_required
-def my_pass_photo(request):
-    """Serve the logged-in user's own photo.
-
-    Takes no employee_id: the person comes from the session, so it can never
-    return someone else's portrait.
-    """
-    username = request.user.username
-    if not username:
-        return HttpResponse(status=404)
-
-    try:
-        person = Person.objects.get(username=username)
-    except Person.DoesNotExist:
-        return HttpResponse(status=404)
-
-    data = None
-    try:
-        employee_card = EmployeeCard.objects.get(employee_id=person.id)
-    except EmployeeCard.DoesNotExist:
-        employee_card = None
-
-    if employee_card and employee_card.photo:
-        try:
-            with employee_card.photo.open('rb') as fh:
-                data = fh.read()
-        except (OSError, ValueError) as e:
-            logger.error(f"Could not read stored photo for person {person.id}: {e}")
-
-    if data is None:
-        data = _avatar_bytes(person)
-
-    if not data:
-        return HttpResponse(status=404)
-
-    response = HttpResponse(data, content_type='image/jpeg')
-    # Personal data: let the browser reuse it, but never a shared cache.
-    response['Cache-Control'] = 'private, max-age=300'
-    return response

@@ -15,8 +15,8 @@
 
     <section class="pass-section identity">
         <div class="identity-photo">
-            {% if has_photo %}
-                <img src="{% url 'idcard:my_pass_photo' %}" alt="{% trans 'Your photo' %}">
+            {% if person.hash %}
+                <img src="{% url 'campusonline:avatar-private' hash=person.hash %}" alt="{% trans 'Your photo' %}">
             {% else %}
                 <div class="identity-photo-placeholder">{% trans "No photo" %}</div>
             {% endif %}
