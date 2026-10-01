@@ -18,6 +18,7 @@ import uuid
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
+from django.utils import translation
 from django.utils.html import escape
 from google.auth import jwt as google_jwt
 from google.auth.transport.requests import AuthorizedSession
@@ -163,6 +164,7 @@ def _upload_private_photo(employee):
         return None
 
 
+@translation.override("de")
 def generate_pass_object(employee):
     """Build the Generic pass-object dict, mirroring the Apple field layout.
 

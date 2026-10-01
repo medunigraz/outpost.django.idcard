@@ -4,6 +4,7 @@ Models for Digital ID Cards
 from functools import cached_property
 
 from django.db import models
+from django.utils.translation import get_language
 
 
 def _title_part(hstore, key):
@@ -12,10 +13,11 @@ def _title_part(hstore, key):
     return ''
 
 
-def _localized(value, lang='de'):
-    """Resolve an HStoreField multilingual dict to a plain string."""
+def _localized(value):
+    """Resolve an HStoreField multilingual dict to the active language, German first."""
     if isinstance(value, dict):
-        return value.get(lang) or value.get('en') or next(iter(value.values()), '') or ''
+        lang = (get_language() or 'de').split('-')[0]
+        return value.get(lang) or value.get('de') or next(iter(value.values()), '') or ''
     return value or ''
 
 

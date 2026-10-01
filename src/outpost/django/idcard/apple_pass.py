@@ -16,6 +16,7 @@ from io import BytesIO
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from django.conf import settings
+from django.utils import translation
 from django.utils.html import escape
 from PIL import Image, ImageDraw, UnidentifiedImageError
 from .models import EmployeeCard
@@ -71,6 +72,7 @@ def _build_thumbnail(employee, size):
     return _silhouette_thumbnail(size)
 
 
+@translation.override("de")
 def generate_pass_json(employee):
     """Generate pass.json content for employee"""
     if not employee.apple_pass_serial:

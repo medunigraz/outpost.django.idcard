@@ -6,7 +6,14 @@
 {% block header %}{% trans "Digital employee ID card" %}{% endblock %}
 
 {% block header_extra %}
-<a class="lang-switch-link" href="?lang={{ other_lang }}">{% if other_lang == 'de' %}Deutsch{% else %}English{% endif %}</a>
+{% get_current_language as LANGUAGE_CODE %}
+{% get_available_languages as LANGUAGES %}
+{% get_language_info_list for LANGUAGES as languages %}
+<span class="lang-switch">
+    {% for language in languages %}{% if language.code != LANGUAGE_CODE %}
+    <a class="lang-switch-link" href="?lang={{ language.code }}" lang="{{ language.code }}">{{ language.name_local|capfirst }}</a>
+    {% endif %}{% endfor %}
+</span>
 {% endblock %}
 
 {% block content %}
