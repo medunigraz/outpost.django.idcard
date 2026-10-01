@@ -12,19 +12,19 @@
     {% for employee in employees %}
     <div class="card">
         <h3>{{ employee.full_name }}</h3>
-        <p><strong>Employee ID:</strong> {{ employee.employee_id }}</p>
+        <p><strong>Employee ID:</strong> {{ employee.person_id }}</p>
         
-        {% if employee.organizational_unit %}
-        <p><strong>Organizational Unit:</strong> {{ employee.organizational_unit }}</p>
+        {% if employee.organization_name %}
+        <p><strong>Organizational Unit:</strong> {{ employee.organization_name }}</p>
         {% endif %}
         
-        {% if employee.visitenkarte_url %}
-        <p><strong>Visitenkarte:</strong> <a href="{{ employee.visitenkarte_url }}" target="_blank">View Business Card</a></p>
+        {% if employee.person.card %}
+        <p><strong>Visitenkarte:</strong> <a href="{{ employee.person.card }}" target="_blank">View Business Card</a></p>
         {% endif %}
         
         <div style="margin-top: 15px;">
-            <a href="{% url 'idcard:employee_detail' employee.employee_id %}" class="btn">View Details</a>
-            <a href="{% url 'idcard:generate_qr' employee.employee_id %}" class="btn btn-secondary" target="_blank">QR Code</a>
+            <a href="{% url 'idcard:employee_detail' employee.person_id %}" class="btn">View Details</a>
+            <a href="{% url 'idcard:generate_qr' employee.person_id %}" class="btn btn-secondary" target="_blank">QR Code</a>
         </div>
     </div>
     {% endfor %}

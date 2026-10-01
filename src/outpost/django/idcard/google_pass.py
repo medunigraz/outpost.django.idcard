@@ -12,7 +12,6 @@ photo uses Secure Private Images so no public URL is ever created:
 https://developers.google.com/wallet/generic/use-cases/secure-private-images
 """
 import logging
-import mimetypes
 import time
 import uuid
 
@@ -143,25 +142,23 @@ def _localized(value, language='de-DE'):
 
 def _upload_private_photo(employee):
     """Upload the photo as a secure private image, returning its id or None."""
-    if not employee.photo:
+    avatar = employee.person.avatar_private
+    if not avatar:
         return None
     try:
-        with employee.photo.open('rb') as f:
-            data = f.read()
-        content_type = mimetypes.guess_type(employee.photo.name)[0] or 'image/jpeg'
         url = f"{PRIVATE_IMAGE_UPLOAD_API}/{settings.GOOGLE_WALLET_ISSUER_ID}/uploadPrivateImage"
-        resp = _session().post(url, data=data, headers={'Content-Type': content_type})
+        resp = _session().post(url, data=bytes(avatar), headers={'Content-Type': 'image/jpeg'})
         if resp.status_code not in (200, 201):
             logger.warning(
                 "Private photo upload failed for employee %s: %s %s",
-                employee.employee_id, resp.status_code, resp.text,
+                employee.person_id, resp.status_code, resp.text,
             )
             return None
         return resp.json().get('privateImageId')
     except Exception as e:
         logger.error(
             "Error uploading private photo for employee %s: %s",
-            employee.employee_id, e,
+            employee.person_id, e,
         )
         return None
 
@@ -175,9 +172,12 @@ def generate_pass_object(employee):
 
     if not employee.google_pass_id:
         employee.google_pass_id = (
-            f"{issuer_id}.{employee.employee_id}_{uuid.uuid4().hex[:8]}"
+            f"{issuer_id}.{employee.person_id}_{uuid.uuid4().hex[:8]}"
         )
         employee.save(update_fields=['google_pass_id'])
+
+    person = employee.person
+    org = employee.organization
 
     pass_object = {
         'id': employee.google_pass_id,
@@ -192,7 +192,7 @@ def generate_pass_object(employee):
             {
                 'id': 'employee_id',
                 'header': 'Bedienstetennummer',
-                'body': str(employee.employee_id),
+                'body': str(employee.person_id),
             },
         ],
     }
@@ -221,49 +221,49 @@ def generate_pass_object(employee):
             },
         }]
 
-    if employee.organizational_unit_short:
-        pass_object['subheader'] = _localized(employee.organizational_unit_short)
+    if org and org.short:
+        pass_object['subheader'] = _localized(org.short)
 
     text = pass_object['textModulesData']
-    if employee.organizational_unit:
+    if employee.organization_name:
         text.append({
             'id': 'org_unit',
             'header': 'Organisationseinheit',
-            'body': employee.organizational_unit,
+            'body': employee.organization_name,
         })
-    if employee.dienstort:
+    if org and org.address:
         text.append({
             'id': 'dienstort',
             'header': 'Dienstort',
-            'body': employee.dienstort,
+            'body': org.address,
         })
-    if employee.email:
+    if person.email:
         text.append({
             'id': 'email',
             'header': 'E-Mail',
-            'body': employee.email,
+            'body': person.email,
         })
-    if employee.organization_phone:
+    if org and org.phone:
         text.append({
             'id': 'oe_phone',
             'header': 'Telefon (OE)',
-            'body': employee.organization_phone,
+            'body': org.phone,
         })
-    if employee.organization_email:
+    if org and org.email:
         text.append({
             'id': 'oe_email',
             'header': 'E-Mail (OE)',
-            'body': employee.organization_email,
+            'body': org.email,
         })
 
-    if employee.visitenkarte_url:
+    if person.card:
         pass_object['barcode'] = {
             'type': 'QR_CODE',
-            'value': employee.visitenkarte_url,
+            'value': person.card,
         }
         pass_object['linksModuleData'] = {
             'uris': [{
-                'uri': employee.visitenkarte_url,
+                'uri': person.card,
                 'description': 'Visitenkarte',
                 'id': 'visitenkarte',
             }],
@@ -307,7 +307,7 @@ def generate_save_url(employee):
         # upsert carries Google's response body.
         raise RuntimeError(
             f"Google Wallet object upsert failed for employee "
-            f"{employee.employee_id}; see the log for Google's response."
+            f"{employee.person_id}; see the log for Google's response."
         )
 
     creds = get_authenticated_credentials()
@@ -348,7 +348,9 @@ def google_pass_download(request, employee_id):
         )
 
     try:
-        employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+        employee = get_object_or_404(
+            EmployeeCard.objects.select_related('person'), person_id=employee_id
+        )
         save_url = generate_save_url(employee)
         if request.user.is_staff and request.GET.get('preview'):
             return render(request, 'idcard/google_wallet_add.html', {

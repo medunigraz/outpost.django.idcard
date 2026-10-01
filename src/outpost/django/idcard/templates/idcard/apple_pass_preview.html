@@ -4,21 +4,21 @@
 
 {% block content %}
 <div class="card">
-    <a href="{% url 'idcard:employee_detail' employee.employee_id %}" class="btn btn-secondary">← Back to Details</a>
+    <a href="{% url 'idcard:employee_detail' employee.person_id %}" class="btn btn-secondary">← Back to Details</a>
 </div>
 
 <div class="card" style="text-align: center;">
     <h2>{{ employee.full_name }}</h2>
     
-    {% if employee.photo %}
+    {% if employee.person.hash %}
     <div style="margin: 20px 0;">
-        <img src="{% url 'idcard:employee_photo' employee.employee_id %}" alt="{{ employee.full_name }}" 
+        <img src="{% url 'campusonline:avatar-private' hash=employee.person.hash %}" alt="{{ employee.full_name }}" 
              style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #007c31;">
     </div>
     {% endif %}
     
-    {% if employee.organizational_unit %}
-    <p style="color: #666; margin-bottom: 20px;">{{ employee.organizational_unit }}</p>
+    {% if employee.organization_name %}
+    <p style="color: #666; margin-bottom: 20px;">{{ employee.organization_name }}</p>
     {% endif %}
     
     <!-- Pass Preview Card -->
@@ -33,21 +33,21 @@
             </div>
         </div>
         
-        {% if employee.photo %}
+        {% if employee.person.hash %}
         <div style="width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid white; margin-bottom: 15px;">
-            <img src="{% url 'idcard:employee_photo' employee.employee_id %}" style="width: 100%; height: 100%; object-fit: cover;">
+            <img src="{% url 'campusonline:avatar-private' hash=employee.person.hash %}" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
         {% endif %}
         
         <div style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Name</div>
         <div style="font-size: 18px; font-weight: bold; margin-bottom: 15px;">{{ employee.full_name }}</div>
         
-        {% if employee.organizational_unit %}
+        {% if employee.organization_name %}
         <div style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Organizational Unit</div>
-        <div style="font-size: 14px; margin-bottom: 15px;">{{ employee.organizational_unit }}</div>
+        <div style="font-size: 14px; margin-bottom: 15px;">{{ employee.organization_name }}</div>
         {% endif %}
         
-        {% if employee.visitenkarte_url %}
+        {% if employee.person.card %}
         <div style="text-align: center; margin-top: 10px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.3);">
             <div style="width: 60px; height: 60px; background: white; margin: 0 auto; border-radius: 4px;"></div>
             <div style="font-size: 10px; margin-top: 5px; opacity: 0.8;">QR Code</div>
@@ -56,7 +56,7 @@
     </div>
     
     <div style="margin: 30px 0;">
-        <a href="{% url 'idcard:apple_pass' employee.employee_id %}" class="btn" 
+        <a href="{% url 'idcard:apple_pass' employee.person_id %}" class="btn" 
            style="background: #000; color: white; font-size: 16px; padding: 15px 30px;">
              Download Apple Wallet Pass
         </a>
@@ -80,6 +80,6 @@
 
 <div class="card">
     <h3>Prefer Google Wallet?</h3>
-    <a href="{% url 'idcard:google_pass' employee.employee_id %}" class="btn btn-secondary">Add to Google Wallet</a>
+    <a href="{% url 'idcard:google_pass' employee.person_id %}" class="btn btn-secondary">Add to Google Wallet</a>
 </div>
 {% endblock %}

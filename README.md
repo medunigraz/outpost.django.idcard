@@ -13,15 +13,16 @@ Installs into the wider `outpost` project, and depends on
 
 ## Data and access
 
-`EmployeeCard` holds one row per employee who has requested a card, keyed by
-`employee_id` (which is `Person.id`). It is a denormalised snapshot of the
-CAMPUSonline record, refreshed whenever the employee opens their card page.
-Only employees are eligible; `Person.employed` is the single gate.
+`EmployeeCard` holds one row per employee who has opened their card page,
+linked one-to-one to their CAMPUSonline `Person`, whose id is the
+Bedienstetennummer. It stores only pass metadata; names, organisation and
+photo are read live from `Person` whenever a pass is built. Only employees are
+eligible; `Person.employed` is the single gate.
 
 Employees can reach only their own card. Anything exposing another person is
-restricted to staff via the Django `is_staff` flag. Photos are served only
-through authenticated views, never `MEDIA_URL` and never CAMPUSonline's public
-avatar URL.
+restricted to staff via the Django `is_staff` flag. Photos come from
+`Person.avatar_private`, served through campusonline's `PrivateAvatarView`,
+never CAMPUSonline's public avatar URL.
 
 Not built yet: pushing updates to a pass already on a phone, and marking a pass
 expired when someone leaves. Both are one nightly job. Neither Apple nor Google
@@ -42,16 +43,15 @@ python -m django migrate idcard
 URLs mount at `/idcard/` through the usual `outpost.django.urls` discovery.
 There is no `endpoints.py`; this app is HTML only, nothing on `/v1/`.
 
-`outpost.django.campusonline` must be installed — all employee data comes from
-its `Person` model. Without it `/idcard/my-pass/` returns 503 rather than
-failing at import.
+`outpost.django.campusonline` must be installed: all employee data comes from
+its `Person` model.
 
 ### Trying it out without any credentials
 
 Most of the app needs no secrets. Signed in as anyone with a CAMPUSonline
 `Person` record whose `employed` is true, `/idcard/my-pass/` will look you up,
-create your `EmployeeCard` row, pull your photo out of CAMPUSonline and render
-the page with both wallet buttons. That exercises the model, the migrations,
+create your `EmployeeCard` row and render the page with your CAMPUSonline
+photo and both wallet buttons. That exercises the model, the migrations,
 the CAMPUSonline integration, the photo handling and the access rules.
 
 Only the two buttons themselves need credentials — the Apple certificate trio
@@ -95,19 +95,13 @@ Optional: `GOOGLE_WALLET_LOGO_URL`, which must be a **public** raster URL
 (PNG/JPG, not SVG) because Google fetches it. Leave it empty in development;
 Google substitutes a generated letter monogram.
 
-`MEDIA_ROOT` and `MEDIA_URL` must be set, since stored photos are written
-through Django's file storage. Photos are only ever served through the
-authenticated views, never linked via `MEDIA_URL`.
-
 ## URLs
 
 | Path | Purpose | Who |
 |---|---|---|
 | `/idcard/my-pass/` | The employee's own card | Any employee |
 | `/idcard/my-pass/generate/` | Download their `.pkpass` | Any employee |
-| `/idcard/my-pass/photo/` | Their own photo, takes no id | Any employee |
 | `/idcard/google-pass/<id>/` | Redirect to the Google save link | Owner or staff |
-| `/idcard/employee/<id>/photo/` | An employee's photo | Owner or staff |
 | `/idcard/` | Card list | Staff |
 | `/idcard/employee/<id>/` | Card detail | Staff |
 | `/idcard/api/employee/<id>/` | Card as JSON | Staff |
@@ -115,9 +109,8 @@ authenticated views, never linked via `MEDIA_URL`.
 | `/idcard/apple-pass/<id>/` | Any employee's `.pkpass` | Staff |
 | `/idcard/apple-pass-preview/<id>/` | Pass preview page | Staff |
 
-`?preview=1` on the Google URL renders a page instead of redirecting, for
-inspecting someone else's pass. Without `outpost.django.campusonline`,
-`/my-pass/` returns 503.
+`<id>` is the Bedienstetennummer. `?preview=1` on the Google URL renders a
+page instead of redirecting, for inspecting someone else's pass.
 
 ## Other
 

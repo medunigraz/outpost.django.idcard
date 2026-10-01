@@ -4,21 +4,21 @@
 
 {% block content %}
 <div class="card">
-    <a href="{% url 'idcard:employee_detail' employee.employee_id %}" class="btn btn-secondary">← Back to Details</a>
+    <a href="{% url 'idcard:employee_detail' employee.person_id %}" class="btn btn-secondary">← Back to Details</a>
 </div>
 
 <div class="card" style="text-align: center;">
     <h2>{{ employee.full_name }}</h2>
     
-    {% if employee.photo %}
+    {% if employee.person.hash %}
     <div style="margin: 20px 0;">
-        <img src="{% url 'idcard:employee_photo' employee.employee_id %}" alt="{{ employee.full_name }}" 
+        <img src="{% url 'campusonline:avatar-private' hash=employee.person.hash %}" alt="{{ employee.full_name }}" 
              style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #007c31;">
     </div>
     {% endif %}
     
-    {% if employee.organizational_unit %}
-    <p style="color: #666; margin-bottom: 20px;">{{ employee.organizational_unit }}</p>
+    {% if employee.organization_name %}
+    <p style="color: #666; margin-bottom: 20px;">{{ employee.organization_name }}</p>
     {% endif %}
     
     <div style="margin: 30px 0; padding: 30px; background: #f8f9fa; border-radius: 12px;">
@@ -48,6 +48,6 @@
 <div class="card">
     <h3>Also Available</h3>
     <p>Want to add to Apple Wallet instead?</p>
-    <a href="{% url 'idcard:apple_pass' employee.employee_id %}" class="btn">Download Apple Wallet Pass</a>
+    <a href="{% url 'idcard:apple_pass' employee.person_id %}" class="btn">Download Apple Wallet Pass</a>
 </div>
 {% endblock %}

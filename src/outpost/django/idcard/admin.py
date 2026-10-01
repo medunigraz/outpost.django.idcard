@@ -5,30 +5,25 @@ from .models import EmployeeCard
 @admin.register(EmployeeCard)
 class EmployeeCardAdmin(admin.ModelAdmin):
     list_display = (
-        'employee_id',
+        'person_id',
         'full_name',
-        'email',
-        'organizational_unit_short',
         'has_photo',
         'has_apple_pass',
         'has_google_pass',
         'created_at',
     )
-    search_fields = ('employee_id', 'first_name', 'last_name', 'email', 'organizational_unit')
+    list_select_related = ('person',)
+    search_fields = ('=person__id', 'person__first_name', 'person__last_name', 'person__username')
     list_filter = (
         'created_at',
-        'organizational_unit_short',
         ('apple_pass_serial', admin.EmptyFieldListFilter),
         ('google_pass_id', admin.EmptyFieldListFilter),
     )
-    readonly_fields = ('created_at', 'updated_at', 'apple_pass_serial', 'google_pass_id')
-    
+    readonly_fields = ('person', 'created_at', 'updated_at', 'apple_pass_serial', 'google_pass_id')
+
     fieldsets = (
-        ('Employee Information', {
-            'fields': ('employee_id', 'first_name', 'last_name', 'email', 'organizational_unit')
-        }),
-        ('Photo & QR Code', {
-            'fields': ('photo', 'visitenkarte_url')
+        (None, {
+            'fields': ('person',)
         }),
         ('Pass Metadata', {
             'fields': ('apple_pass_serial', 'google_pass_id'),
@@ -39,13 +34,13 @@ class EmployeeCardAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def full_name(self, obj):
         return obj.full_name
     full_name.short_description = 'Name'
 
     def has_photo(self, obj):
-        return bool(obj.photo)
+        return bool(obj.person.hash)
     has_photo.boolean = True
     has_photo.short_description = 'Photo'
 

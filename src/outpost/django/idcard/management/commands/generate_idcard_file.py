@@ -10,32 +10,13 @@ Usage:
     # Generate the file for a known username (defaults to ./<username>.pkpass)
     python -m django generate_idcard_file <username>
     python -m django generate_idcard_file <username> --output /tmp/card.pkpass
-
-    # Override the photo with a local file (when CAMPUSonline has no avatar
-    # URL or the download fails)
-    python -m django generate_idcard_file <username> --photo ./photo.jpg
 """
-import io
-import os
-
-import requests
-from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
-from PIL import Image, UnidentifiedImageError
 
 from outpost.django.campusonline.models import Person
 from outpost.django.idcard.apple_pass import generate_apple_pass
 from outpost.django.idcard.models import EmployeeCard
-from outpost.django.idcard.sso_views import _person_to_card_defaults
-
-
-def _is_valid_image_file(path):
-    try:
-        Image.open(path).verify()
-        return True
-    except (UnidentifiedImageError, OSError, FileNotFoundError):
-        return False
 
 
 class Command(BaseCommand):
@@ -64,17 +45,8 @@ class Command(BaseCommand):
             metavar="PATH",
             help="Where to write the .pkpass (default: ./<username>.pkpass).",
         )
-        parser.add_argument(
-            "--photo",
-            metavar="PATH",
-            help=(
-                "Local image file (jpg/png) to use as the card photo, "
-                "overriding whatever CAMPUSonline has. Useful when "
-                "person.avatar is empty or the download fails."
-            ),
-        )
 
-    def handle(self, *args, username, search, output, photo, **options):
+    def handle(self, *args, username, search, output, **options):
         if search:
             self._do_search(search)
             return
@@ -98,103 +70,24 @@ class Command(BaseCommand):
                 f"Digital ID cards are only issued to active staff."
             )
 
-        card, created = EmployeeCard.objects.update_or_create(
-            employee_id=person.id,
-            defaults=_person_to_card_defaults(person),
-        )
-        action = "Created" if created else "Refreshed"
+        _, created = EmployeeCard.objects.get_or_create(person=person)
+        action = "Created" if created else "Found"
         self.stdout.write(
             f"{action} EmployeeCard for {person.first_name} {person.last_name} "
             f"(Bedienstetennummer {person.id})."
         )
 
-        self._attach_photo(card, person, photo)
+        if not person.hash:
+            self.stdout.write(self.style.WARNING(
+                "No photo in CAMPUSonline, the pass will use the silhouette."
+            ))
 
-        pass_buffer = generate_apple_pass(card.employee_id, include_signature=True)
+        pass_buffer = generate_apple_pass(person.id, include_signature=True)
         output_path = output or f"./{username}.pkpass"
         with open(output_path, "wb") as f:
             f.write(pass_buffer.getvalue())
 
         self.stdout.write(self.style.SUCCESS(f"Wrote {output_path}"))
-
-    def _attach_photo(self, card, person, photo_path):
-        if photo_path:
-            if not os.path.exists(photo_path):
-                raise CommandError(f"--photo file does not exist: {photo_path}")
-            with open(photo_path, "rb") as f:
-                content = f.read()
-            filename = os.path.basename(photo_path)
-            card.photo.save(filename, ContentFile(content, name=filename), save=True)
-            self.stdout.write(self.style.SUCCESS(
-                f"Attached local photo: {photo_path} ({len(content)} bytes)"
-            ))
-            return
-
-        if card.photo:
-            if _is_valid_image_file(card.photo.path):
-                self.stdout.write(f"Using already-stored photo: {card.photo.name}")
-                return
-            self.stdout.write(self.style.WARNING(
-                f"Stored photo {card.photo.name} is not a valid image, "
-                f"discarding and re-fetching."
-            ))
-            card.photo.delete(save=True)
-
-        data, source = self._fetch_avatar(person)
-        if not data:
-            self.stdout.write(self.style.WARNING(
-                "No usable photo found in CAMPUSonline, pass will use the "
-                "silhouette placeholder. To attach a real photo manually, "
-                "re-run with --photo /path/to/photo.jpg"
-            ))
-            return
-
-        filename = f"employee_{person.id}.jpg"
-        card.photo.save(filename, ContentFile(data, name=filename), save=True)
-        self.stdout.write(self.style.SUCCESS(
-            f"Saved photo from {source} ({len(data)} bytes)"
-        ))
-
-    def _fetch_avatar(self, person):
-        """Try avatar_private (raw bytes), then fall back to the avatar URL.
-        Returns (bytes, source_description) or (None, None)."""
-        private = getattr(person, 'avatar_private', None)
-        if private:
-            data = bytes(private)
-            if self._is_image_bytes(data, "avatar_private"):
-                return data, "avatar_private (CAMPUSonline DB bytes)"
-
-        if not person.avatar:
-            self.stdout.write(self.style.WARNING(
-                "avatar_private is empty and no public avatar URL is set."
-            ))
-            return None, None
-
-        self.stdout.write(f"Falling back to public avatar URL: {person.avatar}")
-        try:
-            response = requests.get(person.avatar, timeout=10)
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            self.stdout.write(self.style.WARNING(
-                f"Avatar download failed: {exc}"
-            ))
-            return None, None
-
-        if self._is_image_bytes(response.content, "avatar URL response"):
-            return response.content, f"avatar URL ({person.avatar})"
-        return None, None
-
-    def _is_image_bytes(self, data, source_label):
-        try:
-            Image.open(io.BytesIO(data)).verify()
-            return True
-        except (UnidentifiedImageError, OSError) as exc:
-            preview = data[:120]
-            self.stdout.write(self.style.WARNING(
-                f"{source_label} ({len(data)} bytes) is not a valid image: "
-                f"{exc} | first bytes: {preview!r}"
-            ))
-            return False
 
     def _do_search(self, name):
         qs = Person.objects.filter(

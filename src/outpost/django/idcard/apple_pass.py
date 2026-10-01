@@ -54,17 +54,18 @@ def _silhouette_thumbnail(size):
 def _build_thumbnail(employee, size):
     """Real photo (center-cropped to square) when available and valid;
     otherwise the silhouette placeholder."""
-    if employee.photo:
+    avatar = employee.person.avatar_private
+    if avatar:
         try:
-            src = Image.open(employee.photo.path)
+            src = Image.open(BytesIO(bytes(avatar)))
             short = min(src.width, src.height)
             left = (src.width - short) // 2
             top = (src.height - short) // 2
             square = src.crop((left, top, left + short, top + short))
             return square.resize((size, size), Image.LANCZOS)
-        except (UnidentifiedImageError, OSError, FileNotFoundError) as e:
+        except (UnidentifiedImageError, OSError) as e:
             logger.error(
-                f"Could not process photo for employee {employee.employee_id}: "
+                f"Could not process photo for employee {employee.person_id}: "
                 f"{e}; falling back to silhouette."
             )
     return _silhouette_thumbnail(size)
@@ -76,6 +77,9 @@ def generate_pass_json(employee):
         import uuid
         employee.apple_pass_serial = str(uuid.uuid4())
         employee.save()
+
+    person = employee.person
+    org = employee.organization
 
     pass_data = {
         "formatVersion": 1,
@@ -101,50 +105,50 @@ def generate_pass_json(employee):
     aux = pass_data["generic"]["auxiliaryFields"]
     back = pass_data["generic"]["backFields"]
 
-    if employee.organizational_unit_short:
+    if org and org.short:
         sec.append({
             "key": "oe_short",
             "label": "OE",
-            "value": employee.organizational_unit_short,
+            "value": org.short,
         })
 
     aux.append({
         "key": "id",
         "label": "BEDIENSTETENNUMMER",
-        "value": str(employee.employee_id),
+        "value": str(employee.person_id),
     })
-    if employee.email:
-        aux.append({"key": "email", "label": "E-MAIL", "value": employee.email})
+    if person.email:
+        aux.append({"key": "email", "label": "E-MAIL", "value": person.email})
 
-    if employee.organizational_unit:
+    if employee.organization_name:
         back.append({
             "key": "oe_full",
             "label": "Organisationseinheit",
-            "value": employee.organizational_unit,
+            "value": employee.organization_name,
         })
-    if employee.dienstort:
-        back.append({"key": "dienstort", "label": "Dienstort", "value": employee.dienstort})
-    if employee.organization_phone:
+    if org and org.address:
+        back.append({"key": "dienstort", "label": "Dienstort", "value": org.address})
+    if org and org.phone:
         back.append({
             "key": "oe_phone",
             "label": "Telefon (OE)",
-            "value": employee.organization_phone,
+            "value": org.phone,
         })
-    if employee.organization_email:
+    if org and org.email:
         back.append({
             "key": "oe_email",
             "label": "E-Mail (OE)",
-            "value": employee.organization_email,
+            "value": org.email,
         })
 
-    if employee.visitenkarte_url:
+    if person.card:
         back.append({
             "key": "visitenkarte",
             "label": "Visitenkarte",
-            "value": employee.visitenkarte_url,
+            "value": person.card,
         })
         pass_data["barcodes"] = [{
-            "message": employee.visitenkarte_url,
+            "message": person.card,
             "format": "PKBarcodeFormatQR",
             "messageEncoding": "iso-8859-1",
         }]
@@ -216,7 +220,9 @@ def generate_apple_pass(employee_id, include_signature=True):
     Pass `include_signature=False` to skip signing, which produces a file
     Wallet will reject but which can still be unzipped and inspected.
     """
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+    employee = get_object_or_404(
+        EmployeeCard.objects.select_related('person'), person_id=employee_id
+    )
     pass_files = {}
 
     pass_data = generate_pass_json(employee)

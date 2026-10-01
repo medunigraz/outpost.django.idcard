@@ -5,6 +5,7 @@ The self-service employee flow lives in sso_views.py.
 """
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, Http404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from outpost.django.campusonline.models import Person
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @staff_member_required
 def employee_list(request):
-    employees = EmployeeCard.objects.all()
+    employees = EmployeeCard.objects.select_related('person')
     return render(request, 'idcard/employee_list.html', {
         'employees': employees
     })
@@ -26,7 +27,7 @@ def employee_list(request):
 
 @staff_member_required
 def employee_detail(request, employee_id):
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+    employee = get_object_or_404(EmployeeCard, person_id=employee_id)
     return render(request, 'idcard/employee_detail.html', {
         'employee': employee
     })
@@ -34,17 +35,22 @@ def employee_detail(request, employee_id):
 
 @staff_member_required
 def employee_card_json(request, employee_id):
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+    employee = get_object_or_404(EmployeeCard, person_id=employee_id)
     
+    person = employee.person
+    photo_url = (
+        reverse('campusonline:avatar-private', kwargs={'hash': person.hash})
+        if person.hash else None
+    )
     data = {
-        'employee_id': employee.employee_id,
+        'employee_id': employee.person_id,
         'full_name': employee.full_name,
-        'first_name': employee.first_name,
-        'last_name': employee.last_name,
-        'email': employee.email,
-        'organizational_unit': employee.organizational_unit,
-        'visitenkarte_url': employee.visitenkarte_url,
-        'photo_url': employee.photo.url if employee.photo else None,
+        'first_name': person.first_name,
+        'last_name': person.last_name,
+        'email': person.email,
+        'organizational_unit': employee.organization_name,
+        'visitenkarte_url': person.card,
+        'photo_url': photo_url,
         'created_at': employee.created_at.isoformat(),
         'updated_at': employee.updated_at.isoformat(),
     }
@@ -54,9 +60,9 @@ def employee_card_json(request, employee_id):
 
 @staff_member_required
 def generate_qr_code(request, employee_id):
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+    employee = get_object_or_404(EmployeeCard, person_id=employee_id)
     
-    if not employee.visitenkarte_url:
+    if not employee.person.card:
         return HttpResponse("No Visitenkarte URL configured", status=400)
     
     qr = qrcode.QRCode(
@@ -65,7 +71,7 @@ def generate_qr_code(request, employee_id):
         box_size=10,
         border=4,
     )
-    qr.add_data(employee.visitenkarte_url)
+    qr.add_data(employee.person.card)
     qr.make(fit=True)
     
     img = qr.make_image(fill_color="black", back_color="white")
@@ -85,7 +91,7 @@ def generate_apple_pass(request, employee_id):
 
 @staff_member_required
 def apple_pass_preview(request, employee_id):
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
+    employee = get_object_or_404(EmployeeCard, person_id=employee_id)
     return render(request, 'idcard/apple_pass_preview.html', {
         'employee': employee
     })
@@ -102,17 +108,6 @@ def generate_google_pass(request, employee_id):
     return google_pass_download(request, employee_id)
 
 
-def _requester_employee_id(request):
-    """The logged-in user's own employee_id, or None."""
-    username = request.user.username
-    if not username:
-        return None
-    try:
-        return Person.objects.get(username=username).id
-    except Person.DoesNotExist:
-        return None
-
-
 def _require_owner_or_staff(request, employee_id):
     """Raise Http404 unless the requester owns this card, or is staff.
 
@@ -120,31 +115,5 @@ def _require_owner_or_staff(request, employee_id):
     """
     if request.user.is_staff:
         return
-    if _requester_employee_id(request) != employee_id:
+    if not Person.objects.filter(id=employee_id, username=request.user.username).exists():
         raise Http404
-
-
-@login_required
-def employee_photo(request, employee_id):
-    """Serve an employee's photo to that employee, or to staff.
-
-    Never link photos via MEDIA_URL; /media/ has no authentication.
-    """
-    employee = get_object_or_404(EmployeeCard, employee_id=employee_id)
-
-    _require_owner_or_staff(request, employee.employee_id)
-
-    if not employee.photo:
-        raise Http404
-
-    try:
-        with employee.photo.open('rb') as fh:
-            data = fh.read()
-    except (OSError, ValueError) as e:
-        logger.error(f"Could not read stored photo for employee {employee_id}: {e}")
-        raise Http404
-
-    response = HttpResponse(data, content_type='image/jpeg')
-    # Personal data: reusable by this browser, never by a shared cache.
-    response['Cache-Control'] = 'private, max-age=300'
-    return response
