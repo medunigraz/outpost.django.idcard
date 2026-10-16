@@ -9,7 +9,12 @@ license = {text = "BSD"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "django (>=5.0)",
+    "django (>=4.2.23)",
+    "django-appconf",
+    "djangorestframework",
+    "drf-flex-fields",
+    "celery",
+    "cryptography",
     "pillow",
     "qrcode[pil]",
     "google-auth[requests]",

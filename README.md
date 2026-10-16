@@ -19,13 +19,14 @@ Bedienstetennummer. It stores only pass metadata; names, organisation and
 photo are read live from `Person` whenever a pass is built. Only employees are
 eligible; `Person.employed` is the single gate.
 
-Employees can reach only their own card. Anything exposing another person is
-restricted to staff via the Django `is_staff` flag. Photos come from
+Employees can reach only their own card. Other people's cards are visible only
+in the admin and the API, to holders of `idcard.view_employeecard`. Photos come from
 `Person.avatar_private`, served through campusonline's `PrivateAvatarView`,
 never CAMPUSonline's public avatar URL.
 
-Not built yet: pushing updates to a pass already on a phone, and marking a pass
-expired when someone leaves. Both are one nightly job. Neither Apple nor Google
+Not built yet: pushing updates to an Apple pass already on a phone, and marking
+a pass expired when someone leaves. Google passes can already be re-pushed, see
+Tasks. Neither Apple nor Google
 can delete a pass off a phone, so revocation means showing it as expired.
 
 ## Install
@@ -66,51 +67,53 @@ pass at all**. A save that fails for anyone else is that, not a bug.
 
 ## Settings
 
-Required for Apple `.pkpass` generation:
+Declared in `conf.py` with the `IDCARD_` prefix. Set them in the deployment's
+configuration file. Keys and certificates go in as their PEM text, not as
+paths.
 
-| Setting | What |
-|---|---|
-| `APPLE_PASS_TYPE_ID` | Pass Type identifier, e.g. `pass.at.medunigraz.idcard` |
-| `APPLE_TEAM_ID` | Apple Developer team identifier |
-| `APPLE_PASS_CERT_PATH` | Pass Type ID certificate, PEM |
-| `APPLE_PASS_KEY_PATH` | Its private key, PEM |
-| `APPLE_WWDR_PATH` | Apple WWDR intermediate certificate, PEM |
-| `APPLE_PASS_CERTIFICATE_PASSWORD` | Key password, empty string if none |
-
-Signing shells out to `openssl`, so the binary must be on PATH.
-
-Required for Google Wallet:
-
-| Setting | What |
-|---|---|
-| `GOOGLE_WALLET_ISSUER_ID` | Numeric issuer ID from the Business Console |
-| `GOOGLE_SERVICE_ACCOUNT_FILE` | Path to the service-account JSON key |
+| Setting | What | Default |
+|---|---|---|
+| `IDCARD_APPLE_PASS_TYPE_ID` | Pass Type identifier | `pass.at.medunigraz.idcard` |
+| `IDCARD_APPLE_TEAM_ID` | Apple Developer team identifier | `A4T23767YU` |
+| `IDCARD_APPLE_CERTIFICATE` | Pass Type ID certificate, PEM | required |
+| `IDCARD_APPLE_KEY` | Its private key, PEM | required |
+| `IDCARD_APPLE_KEY_PASSWORD` | Key password, if the key is encrypted | `None` |
+| `IDCARD_APPLE_WWDR_CERTIFICATE` | Apple WWDR intermediate certificate, PEM | required |
+| `IDCARD_GOOGLE_ISSUER_ID` | Numeric issuer ID from the Business Console | `3388000000023162641` |
+| `IDCARD_GOOGLE_SERVICE_ACCOUNT` | The service-account JSON key, as a dict | required |
+| `IDCARD_GOOGLE_LOGO_URL` | Public raster logo URL for Google | empty |
 
 The service account's `client_email` must be granted access to the issuer in
 the Wallet Business Console. The same key both authorises the REST calls and
 signs the save link, which is why user OAuth will not do — it cannot run
 headless.
 
-Optional: `GOOGLE_WALLET_LOGO_URL`, which must be a **public** raster URL
-(PNG/JPG, not SVG) because Google fetches it. Leave it empty in development;
-Google substitutes a generated letter monogram.
+`IDCARD_GOOGLE_LOGO_URL` must be a **public** raster URL (PNG/JPG, not SVG)
+because Google fetches it. Leave it empty in development; Google substitutes a
+generated letter monogram.
 
 ## URLs
 
 | Path | Purpose | Who |
 |---|---|---|
 | `/idcard/my-pass/` | The employee's own card | Any employee |
-| `/idcard/my-pass/generate/` | Download their `.pkpass` | Any employee |
-| `/idcard/google-pass/<id>/` | Redirect to the Google save link | Owner or staff |
-| `/idcard/` | Card list | Staff |
-| `/idcard/employee/<id>/` | Card detail | Staff |
-| `/idcard/api/employee/<id>/` | Card as JSON | Staff |
-| `/idcard/qr/<id>/` | QR code image | Staff |
-| `/idcard/apple-pass/<id>/` | Any employee's `.pkpass` | Staff |
-| `/idcard/apple-pass-preview/<id>/` | Pass preview page | Staff |
+| `/idcard/my-pass/apple/` | Download their own `.pkpass` | Any employee |
+| `/idcard/my-pass/google/` | Redirect to their own Google save link | Any employee |
+| `/v1/idcard/card/` | Cards as JSON, `?expand=person` for the CAMPUSonline data | Own card; all with `idcard.view_employeecard` |
 
-`<id>` is the Bedienstetennummer. `?preview=1` on the Google URL renders a
-page instead of redirecting, for inspecting someone else's pass.
+All cards are listed in the Django admin. Its actions "Download Apple pass" and
+"Re-push Google pass" need the `idcard.manage_passes` permission, which an
+admin grants to a hand-made group.
+
+## Tasks
+
+| Task | What |
+|---|---|
+| `outpost.django.idcard.tasks.Card:google_push` | Push one card's current data to Google |
+| `outpost.django.idcard.tasks.Card:synchronize` | Push every card that has a Google pass |
+
+Schedule `Card:synchronize` with a periodic task in the admin to keep Google
+passes current.
 
 ## Other
 

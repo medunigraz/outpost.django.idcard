@@ -44,30 +44,30 @@
         {% if device == 'ios' %}
             <p class="actions-lede">{% trans "We detected an iPhone or iPad. Tap the button below to add your ID card to Apple Wallet." %}</p>
             <div class="wallet-buttons">
-                <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
+                <a href="{% url 'idcard:apple-pass' %}" class="wallet-btn wallet-btn-apple">
                     {% trans "Add to Apple Wallet" %}
                 </a>
-                <a href="{% url 'idcard:google_pass' employee_card.person_id %}" class="wallet-btn wallet-btn-secondary wallet-btn-google">
+                <a href="{% url 'idcard:google-pass' %}" class="wallet-btn wallet-btn-secondary wallet-btn-google">
                     {% trans "Add to Google Wallet" %}
                 </a>
             </div>
         {% elif device == 'android' %}
             <p class="actions-lede">{% trans "We detected an Android device. Tap the button below to add your ID card to Google Wallet." %}</p>
             <div class="wallet-buttons">
-                <a href="{% url 'idcard:google_pass' employee_card.person_id %}" class="wallet-btn wallet-btn-google">
+                <a href="{% url 'idcard:google-pass' %}" class="wallet-btn wallet-btn-google">
                     {% trans "Add to Google Wallet" %}
                 </a>
-                <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-secondary wallet-btn-apple">
+                <a href="{% url 'idcard:apple-pass' %}" class="wallet-btn wallet-btn-secondary wallet-btn-apple">
                     {% trans "Add to Apple Wallet" %}
                 </a>
             </div>
         {% else %}
             <p class="actions-lede">{% trans "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera." %}</p>
             <div class="wallet-buttons">
-                <a href="{% url 'idcard:generate_my_pass' %}" class="wallet-btn wallet-btn-apple">
+                <a href="{% url 'idcard:apple-pass' %}" class="wallet-btn wallet-btn-apple">
                     {% trans "Add to Apple Wallet" %}
                 </a>
-                <a href="{% url 'idcard:google_pass' employee_card.person_id %}" class="wallet-btn wallet-btn-google">
+                <a href="{% url 'idcard:google-pass' %}" class="wallet-btn wallet-btn-google">
                     {% trans "Add to Google Wallet" %}
                 </a>
             </div>

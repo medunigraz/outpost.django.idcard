@@ -11,11 +11,14 @@ Usage:
     python -m django generate_idcard_file <username>
     python -m django generate_idcard_file <username> --output /tmp/card.pkpass
 """
-from django.core.management.base import BaseCommand, CommandError
-from django.db.models import Q
 
+from django.core.management.base import (
+    BaseCommand,
+    CommandError,
+)
+from django.db.models import Q
 from outpost.django.campusonline.models import Person
-from outpost.django.idcard.apple_pass import generate_apple_pass
+
 from outpost.django.idcard.models import EmployeeCard
 
 
@@ -70,7 +73,7 @@ class Command(BaseCommand):
                 f"Digital ID cards are only issued to active staff."
             )
 
-        _, created = EmployeeCard.objects.get_or_create(person=person)
+        card, created = EmployeeCard.objects.get_or_create(person=person)
         action = "Created" if created else "Found"
         self.stdout.write(
             f"{action} EmployeeCard for {person.first_name} {person.last_name} "
@@ -78,14 +81,15 @@ class Command(BaseCommand):
         )
 
         if not person.hash:
-            self.stdout.write(self.style.WARNING(
-                "No photo in CAMPUSonline, the pass will use the silhouette."
-            ))
+            self.stdout.write(
+                self.style.WARNING(
+                    "No photo in CAMPUSonline, the pass will use the silhouette."
+                )
+            )
 
-        pass_buffer = generate_apple_pass(person.id, include_signature=True)
         output_path = output or f"./{username}.pkpass"
         with open(output_path, "wb") as f:
-            f.write(pass_buffer.getvalue())
+            f.write(card.apple_pass())
 
         self.stdout.write(self.style.SUCCESS(f"Wrote {output_path}"))
 
@@ -108,6 +112,6 @@ class Command(BaseCommand):
                 f"{p.username:<20} {p.first_name} {p.last_name:<40} {org_short}"
             )
         if qs.count() == 50:
-            self.stdout.write(self.style.WARNING(
-                "(truncated at 50 results, refine your search)"
-            ))
+            self.stdout.write(
+                self.style.WARNING("(truncated at 50 results, refine your search)")
+            )
