@@ -1,5 +1,5 @@
 {% extends "idcard/base.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}{% trans "My employee ID card" %}{% endblock %}
 
@@ -16,79 +16,132 @@
 </span>
 {% endblock %}
 
+{% block extra_style %}
+<style>
+    /* Mirrors the wallet pass: green face, white logo, photo, name, unit. */
+    .id-card {
+        background: linear-gradient(145deg, #008a37 0%, #007c31 55%, #006a2a 100%);
+        color: white;
+        border-radius: 18px;
+        padding: 20px 22px 24px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 14px 32px rgba(0, 92, 37, 0.25);
+    }
+    .id-card-logo { height: 40px; width: auto; display: block; }
+    .id-card-body { display: flex; align-items: center; gap: 18px; margin-top: 22px; }
+    .id-card-photo {
+        width: 84px;
+        height: 84px;
+        border-radius: 12px;
+        object-fit: cover;
+        flex: none;
+        display: block;
+        background: rgba(255, 255, 255, 0.14);
+    }
+    .id-card-info { min-width: 0; }
+    .id-card-name { font-size: 20px; font-weight: 600; line-height: 1.25; }
+    .id-card-org, .id-card-email {
+        font-size: 14px;
+        opacity: 0.88;
+        margin-top: 4px;
+        overflow-wrap: anywhere;
+    }
+
+    .panel h2 { margin-bottom: 4px; }
+    /* Official badges keep their own artwork and proportions; only the height is set. */
+    .wallet-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        margin-top: 20px;
+    }
+    .wallet-buttons-android .wallet-badge-google { order: -1; }
+    .wallet-badge { display: block; line-height: 0; border-radius: 10px; }
+    .wallet-badge img { height: 52px; width: auto; display: block; }
+    .wallet-badge:focus-visible { outline: 3px solid #007c31; outline-offset: 2px; }
+
+    .qr-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid #ececec;
+    }
+    .qr-row img { width: 112px; height: 112px; display: block; flex: none; }
+    .qr-caption { font-size: 14px; color: #555; }
+
+    .about { margin-top: 24px; padding: 0 4px; }
+    .about-title { font-size: 14px; font-weight: 600; color: #4a4a4a; margin-bottom: 6px; }
+    .about-list { padding-left: 18px; color: #6b6b6b; font-size: 13.5px; line-height: 1.6; }
+    .about-list li + li { margin-top: 4px; }
+
+    @media (max-width: 480px) {
+        .id-card { padding: 18px 18px 20px; }
+        .id-card-photo { width: 72px; height: 72px; }
+        .id-card-name { font-size: 18px; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="pass-page">
-<div class="pass-card">
-
-    <section class="pass-section identity">
-        <div class="identity-photo">
-            {% if person.hash %}
-                <img src="{% url 'campusonline:avatar-private' hash=person.hash %}" alt="{% trans 'Your photo' %}">
-            {% else %}
-                <div class="identity-photo-placeholder">{% trans "No photo" %}</div>
-            {% endif %}
-        </div>
-        <div class="identity-info">
-            {# full_name, not first+last: it carries the academic title, so the page matches the pass. #}
-            <h2 class="identity-name">{{ employee_card.full_name }}</h2>
-            <p class="identity-meta">
-                {{ person.email }}
-                {% if employee_card.organization_name %}<br>{{ employee_card.organization_name }}{% endif %}
-            </p>
-        </div>
-    </section>
-
-    <section class="pass-section">
-        <h3 class="actions-title">{% trans "Add your ID card to your phone" %}</h3>
-
-        {% if device == 'ios' %}
-            <p class="actions-lede">{% trans "We detected an iPhone or iPad. Tap the button below to add your ID card to Apple Wallet." %}</p>
-            <div class="wallet-buttons">
-                <a href="{% url 'idcard:apple-pass' %}" class="wallet-btn wallet-btn-apple">
-                    {% trans "Add to Apple Wallet" %}
-                </a>
-                <a href="{% url 'idcard:google-pass' %}" class="wallet-btn wallet-btn-secondary wallet-btn-google">
-                    {% trans "Add to Google Wallet" %}
-                </a>
-            </div>
-        {% elif device == 'android' %}
-            <p class="actions-lede">{% trans "We detected an Android device. Tap the button below to add your ID card to Google Wallet." %}</p>
-            <div class="wallet-buttons">
-                <a href="{% url 'idcard:google-pass' %}" class="wallet-btn wallet-btn-google">
-                    {% trans "Add to Google Wallet" %}
-                </a>
-                <a href="{% url 'idcard:apple-pass' %}" class="wallet-btn wallet-btn-secondary wallet-btn-apple">
-                    {% trans "Add to Apple Wallet" %}
-                </a>
-            </div>
+<div class="id-card">
+    <img class="id-card-logo" src="{% static 'idcard/logo@2x.png' %}" alt="MedUni Graz">
+    <div class="id-card-body">
+        {% if person.hash %}
+            <img class="id-card-photo" src="{% url 'campusonline:avatar-private' hash=person.hash %}" alt="{% trans 'Your photo' %}">
         {% else %}
-            <p class="actions-lede">{% trans "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera." %}</p>
-            <div class="wallet-buttons">
-                <a href="{% url 'idcard:apple-pass' %}" class="wallet-btn wallet-btn-apple">
-                    {% trans "Add to Apple Wallet" %}
-                </a>
-                <a href="{% url 'idcard:google-pass' %}" class="wallet-btn wallet-btn-google">
-                    {% trans "Add to Google Wallet" %}
-                </a>
-            </div>
-            {% if qr_data_uri %}
-            <div class="qr-row">
-                <img src="{{ qr_data_uri }}" alt="{% trans 'QR code to open this page on your phone' %}">
-                <p class="qr-caption">{% trans "Scan with your phone's camera" %}</p>
-            </div>
-            {% endif %}
+            <svg class="id-card-photo" viewBox="0 0 84 84" role="img" aria-label="{% trans 'No photo' %}">
+                <circle cx="42" cy="32" r="14" fill="white" fill-opacity="0.85"/>
+                <path d="M16 78c0-15 11.6-25 26-25s26 10 26 25z" fill="white" fill-opacity="0.85"/>
+            </svg>
         {% endif %}
-    </section>
-
-    <section class="pass-section">
-        <h4 class="about-title">{% trans "About your digital ID card" %}</h4>
-        <ul class="about-list">
-            <li>{% trans "Your card is for soft identification only (e.g. employee discounts at partner shops)." %}</li>
-            <li>{% trans "The QR code on the card links to your official MedUni business card (Visitenkarte)." %}</li>
-            <li>{% trans "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card." %}</li>
-        </ul>
-    </section>
-
+        <div class="id-card-info">
+            {# full_name, not first+last: it carries the academic title, so the page matches the pass. #}
+            <div class="id-card-name">{{ employee_card.full_name }}</div>
+            {% if employee_card.organization_name %}<div class="id-card-org">{{ employee_card.organization_name }}</div>{% endif %}
+            <div class="id-card-email">{{ person.email }}</div>
+        </div>
+    </div>
 </div>
-</div>
+
+<section class="panel">
+    <h2>{% trans "Add your ID card to your phone" %}</h2>
+
+    {% if device == 'ios' %}
+        <p>{% trans "We detected an iPhone or iPad. Tap the button below to add your ID card to Apple Wallet." %}</p>
+    {% elif device == 'android' %}
+        <p>{% trans "We detected an Android device. Tap the button below to add your ID card to Google Wallet." %}</p>
+    {% else %}
+        <p>{% trans "Open this page on your phone to add your ID card to your wallet, or scan the QR code below with your phone's camera." %}</p>
+    {% endif %}
+
+    {% get_current_language as LANGUAGE_CODE %}
+    <div class="wallet-buttons{% if device == 'android' %} wallet-buttons-android{% endif %}">
+        {% if LANGUAGE_CODE|slice:":2" == "de" %}
+        <a href="{% url 'idcard:apple-pass' %}" class="wallet-badge"><img src="{% static 'idcard/apple-wallet-de.svg' %}" alt="{% trans 'Add to Apple Wallet' %}"></a>
+        <a href="{% url 'idcard:google-pass' %}" class="wallet-badge wallet-badge-google"><img src="{% static 'idcard/google-wallet-de.svg' %}" alt="{% trans 'Add to Google Wallet' %}"></a>
+        {% else %}
+        <a href="{% url 'idcard:apple-pass' %}" class="wallet-badge"><img src="{% static 'idcard/apple-wallet-en.svg' %}" alt="{% trans 'Add to Apple Wallet' %}"></a>
+        <a href="{% url 'idcard:google-pass' %}" class="wallet-badge wallet-badge-google"><img src="{% static 'idcard/google-wallet-en.svg' %}" alt="{% trans 'Add to Google Wallet' %}"></a>
+        {% endif %}
+    </div>
+
+    {% if qr_data_uri %}
+    <div class="qr-row">
+        <img src="{{ qr_data_uri }}" alt="{% trans 'QR code to open this page on your phone' %}">
+        <p class="qr-caption">{% trans "Scan with your phone's camera" %}</p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="about">
+    <h3 class="about-title">{% trans "About your digital ID card" %}</h3>
+    <ul class="about-list">
+        <li>{% trans "Your card is for soft identification only (e.g. employee discounts at partner shops)." %}</li>
+        <li>{% trans "The QR code on the card links to your official MedUni business card (Visitenkarte)." %}</li>
+        <li>{% trans "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card." %}</li>
+    </ul>
+</section>
 {% endblock %}
