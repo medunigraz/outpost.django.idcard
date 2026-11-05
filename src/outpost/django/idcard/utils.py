@@ -19,14 +19,20 @@ from google.auth.transport.requests import AuthorizedSession
 from google.oauth2 import service_account
 from PIL import (
     Image,
+    ImageChops,
     ImageDraw,
+    ImageOps,
 )
 
 from .conf import settings
 
 logger = logging.getLogger(__name__)
 
-APPLE_IMAGES = ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png")
+STATIC = Path(__file__).parent / "static" / "idcard"
+APPLE_IMAGES = ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png", "logo@3x.png")
+# Store card strip in points; the artwork is drawn at @3x.
+APPLE_STRIP_SIZE = (375, 144)
+APPLE_BACKGROUND = (0, 124, 49)
 # Pass updates are only delivered by the production environment, never the sandbox.
 APNS_URL = "https://api.push.apple.com/3/device"
 
@@ -77,24 +83,54 @@ def silhouette(size):
     return img.resize((size, size), Image.LANCZOS)
 
 
-def square(data, size):
-    """Center-crop image bytes to a square of the given size."""
-    src = Image.open(BytesIO(data))
-    short = min(src.width, src.height)
-    left = (src.width - short) // 2
-    top = (src.height - short) // 2
-    return src.crop((left, top, left + short, top + short)).resize(
-        (size, size), Image.LANCZOS
+def cover(data, width, height):
+    """Crop image bytes to fill width x height, keeping faces in the upper part."""
+    src = Image.open(BytesIO(data)).convert("RGBA")
+    return ImageOps.fit(src, (width, height), Image.LANCZOS, centering=(0.5, 0.4))
+
+
+def apple_strip(data, scale):
+    """Campus artwork over the card green, the photo framed on the right.
+
+    With `data` None the frame holds the silhouette instead.
+    """
+    width, height = APPLE_STRIP_SIZE[0] * scale, APPLE_STRIP_SIZE[1] * scale
+    strip = Image.new("RGBA", (width, height), APPLE_BACKGROUND + (255,))
+    art = Image.open(STATIC / "strip-campus.png").convert("RGBA")
+    strip.alpha_composite(art.resize((width, height), Image.LANCZOS))
+
+    photo_h = round(height * 0.78)
+    photo_w = round(photo_h * 0.8)
+    if data:
+        photo = cover(data, photo_w, photo_h)
+    else:
+        photo = Image.new("RGBA", (photo_w, photo_h), (255, 255, 255, 40))
+        photo.alpha_composite(silhouette(photo_w), (0, photo_h - photo_w))
+
+    radius, border = 6 * scale, 2 * scale
+    mask = Image.new("L", photo.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, photo_w - 1, photo_h - 1), radius, fill=255
     )
+    photo.putalpha(ImageChops.multiply(photo.getchannel("A"), mask))
+
+    x, y = width - photo_w - 16 * scale, (height - photo_h) // 2
+    strip.alpha_composite(photo, (x, y))
+    ImageDraw.Draw(strip).rounded_rectangle(
+        (x, y, x + photo_w - 1, y + photo_h - 1),
+        radius,
+        outline=(255, 255, 255, 255),
+        width=border,
+    )
+    return strip.convert("RGB")
 
 
 def apple_images():
     """The static pass images. icon.png is the only one Apple requires."""
-    static = Path(__file__).parent / "static" / "idcard"
     return {
-        name: (static / name).read_bytes()
+        name: (STATIC / name).read_bytes()
         for name in APPLE_IMAGES
-        if (static / name).exists()
+        if (STATIC / name).exists()
     }
 
 
@@ -200,13 +236,22 @@ def google_localized(value, language="de-DE"):
     return {"defaultValue": {"language": language, "value": value}}
 
 
+def google_image(name, description):
+    """An image Google fetches from IDCARD_GOOGLE_IMAGE_URL, so it must be public."""
+    base = settings.IDCARD_GOOGLE_IMAGE_URL.rstrip("/")
+    return {
+        "sourceUri": {"uri": f"{base}/{name}"},
+        "contentDescription": google_localized(description),
+    }
+
+
 def google_upsert_class():
     """Create or update the Generic pass class shared by all cards. Idempotent."""
     class_id = google_class_id()
 
     # Field values live on the object, but the card face layout is class
     # level. Without this override the photo renders only in the details
-    # section. Google allows at most three rows; we use one.
+    # section. Google allows at most three rows; we use all of them.
     pass_class = {
         "id": class_id,
         "classTemplateInfo": {
@@ -229,6 +274,30 @@ def google_upsert_class():
                                         {
                                             "fieldPath": "object.imageModulesData['photo']"
                                         }
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                    {
+                        "oneItem": {
+                            "item": {
+                                "firstValue": {
+                                    "fields": [
+                                        {
+                                            "fieldPath": "object.textModulesData['org_unit']"
+                                        }
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                    {
+                        "oneItem": {
+                            "item": {
+                                "firstValue": {
+                                    "fields": [
+                                        {"fieldPath": "object.textModulesData['email']"}
                                     ],
                                 },
                             },

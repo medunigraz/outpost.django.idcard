@@ -119,12 +119,23 @@ class EmployeeCard(models.Model):
         return name
 
     @cached_property
+    def organizations(self):
+        """Every OE of the person, the one shown on the card front first."""
+        return list(self.person.organizations.order_by("pk"))
+
+    @property
     def organization(self):
-        return self.person.organizations.first()
+        return self.organizations[0] if self.organizations else None
 
     @property
     def organization_name(self):
         return _localized(self.organization.name) if self.organization else ""
+
+    @property
+    def organization_label(self):
+        """The front OE, with how many more the back lists."""
+        more = len(self.organizations) - 1
+        return f"{self.organization_name} (+{more})" if more else self.organization_name
 
     @property
     def visitenkarte(self):
@@ -146,18 +157,18 @@ class EmployeeCard(models.Model):
     def has_google_pass(self):
         return bool(self.google_pass_id)
 
-    def thumbnail(self, size):
-        """The photo as a square, or the silhouette when there is none."""
+    def strip(self, scale):
+        """The Apple strip with the photo, or the silhouette when there is none."""
         person = self.current_person
         avatar = person.avatar_private if person else None
         if avatar:
             try:
-                return utils.square(bytes(avatar), size)
+                return utils.apple_strip(bytes(avatar), scale)
             except (UnidentifiedImageError, OSError) as e:
                 logger.error(
                     f"Could not process photo for employee {self.person_id}: {e}; using the silhouette."
                 )
-        return utils.silhouette(size)
+        return utils.apple_strip(None, scale)
 
     def apple_assign_ids(self):
         """Serial and web service token, fixed for the life of the pass."""
@@ -183,7 +194,10 @@ class EmployeeCard(models.Model):
             "backgroundColor": "rgb(0, 124, 49)",
             "foregroundColor": "rgb(255, 255, 255)",
             "labelColor": "rgb(255, 255, 255)",
-            "generic": {
+            # A store card, because only that style takes a strip image. The
+            # photo is drawn into the strip, as store cards have no thumbnail.
+            "storeCard": {
+                "headerFields": [],
                 "primaryFields": [],
                 "secondaryFields": [],
                 "auxiliaryFields": [],
@@ -198,41 +212,52 @@ class EmployeeCard(models.Model):
             pass_data["expirationDate"] = self.revoked_at.isoformat()
             pass_data["backgroundColor"] = utils.APPLE_REVOKED_BACKGROUND
 
+        card = pass_data["storeCard"]
         person = self.current_person
         if person is None:
             # Nothing left to show, and the pass must still be served voided.
-            pass_data["generic"]["primaryFields"].append(
+            card["primaryFields"].append(
                 {"key": "status", "label": "STATUS", "value": "UNGÜLTIG"}
             )
             return pass_data
 
         org = self.organization
         pass_data["description"] = f"MedUni Graz Employee ID - {self.full_name}"
-        pass_data["generic"]["primaryFields"].append(
+        card["primaryFields"].append(
             {"key": "name", "label": "NAME", "value": self.full_name}
         )
 
-        sec = pass_data["generic"]["secondaryFields"]
-        aux = pass_data["generic"]["auxiliaryFields"]
-        back = pass_data["generic"]["backFields"]
+        sec = card["secondaryFields"]
+        back = card["backFields"]
 
         if org and org.short:
-            sec.append({"key": "oe_short", "label": "OE", "value": org.short})
-
-        aux.append(
-            {"key": "id", "label": "BEDIENSTETENNUMMER", "value": str(self.person_id)}
-        )
-        if person.email:
-            aux.append({"key": "email", "label": "E-MAIL", "value": person.email})
-
+            card["headerFields"].append(
+                {"key": "oe_short", "label": "OE", "value": org.short}
+            )
         if self.organization_name:
-            back.append(
+            sec.append(
                 {
-                    "key": "oe_full",
-                    "label": "Organisationseinheit",
-                    "value": self.organization_name,
+                    "key": "oe",
+                    "label": "ORGANISATIONSEINHEIT",
+                    "value": self.organization_label,
                 }
             )
+        sec.append(
+            {"key": "id", "label": "BEDIENSTETENNUMMER", "value": str(self.person_id)}
+        )
+
+        for i, o in enumerate(self.organizations):
+            back.append(
+                {
+                    "key": f"oe_full_{i}" if i else "oe_full",
+                    "label": (
+                        "Weitere Organisationseinheit" if i else "Organisationseinheit"
+                    ),
+                    "value": _localized(o.name),
+                }
+            )
+        if person.email:
+            back.append({"key": "email", "label": "E-Mail", "value": person.email})
         if org and org.address:
             back.append(
                 {"key": "dienstort", "label": "Dienstort", "value": org.address}
@@ -283,11 +308,13 @@ class EmployeeCard(models.Model):
             "pass.json": json.dumps(self.apple_pass_json(), indent=2).encode("utf-8")
         }
         files.update(utils.apple_images())
-        # Apple fixes the thumbnail at 90x90pt, so 180x180 for the @2x variant.
-        for size, name in ((90, "thumbnail.png"), (180, "thumbnail@2x.png")):
-            buf = BytesIO()
-            self.thumbnail(size).save(buf, format="PNG")
-            files[name] = buf.getvalue()
+        # A voided pass keeps no photo; the plain grey card says UNGÜLTIG.
+        if self.current_person and not self.revoked_at:
+            for scale in (1, 2, 3):
+                buf = BytesIO()
+                self.strip(scale).save(buf, format="PNG", optimize=True)
+                name = "strip.png" if scale == 1 else f"strip@{scale}x.png"
+                files[name] = buf.getvalue()
 
         manifest = utils.apple_manifest(files)
         signature = utils.apple_sign(manifest) if signed else None
@@ -367,29 +394,32 @@ class EmployeeCard(models.Model):
             }
         )
 
-        # Google fetches the logo from a public raster URL (PNG/JPG, not SVG),
-        # so it is left out unless one is configured.
-        if settings.IDCARD_GOOGLE_LOGO_URL:
-            pass_object["logo"] = {
-                "sourceUri": {"uri": settings.IDCARD_GOOGLE_LOGO_URL},
-                "contentDescription": utils.google_localized(
-                    "MedUni Graz Logo", "en-US"
-                ),
-            }
+        # Google fetches these itself, so they are left out until the static
+        # files are served publicly.
+        images = bool(settings.IDCARD_GOOGLE_IMAGE_URL)
+        if images:
+            pass_object["logo"] = utils.google_image("google-logo.png", "MedUni Graz")
+            pass_object["wideLogo"] = utils.google_image(
+                "google-wide-logo.png", "MedUni Graz"
+            )
+            pass_object["heroImage"] = utils.google_image(
+                "google-hero.png", "MED CAMPUS Graz"
+            )
 
         private_image_id = self.google_private_image()
         if private_image_id:
-            pass_object["imageModulesData"] = [
-                {
-                    "id": "photo",
-                    "mainImage": {
-                        "privateImageId": private_image_id,
-                        "contentDescription": utils.google_localized(
-                            f"Foto von {self.full_name}"
-                        ),
-                    },
-                }
-            ]
+            photo = {
+                "privateImageId": private_image_id,
+                "contentDescription": utils.google_localized(
+                    f"Foto von {self.full_name}"
+                ),
+            }
+        elif images:
+            photo = utils.google_image("google-silhouette.png", "Kein Foto")
+        else:
+            photo = None
+        if photo:
+            pass_object["imageModulesData"] = [{"id": "photo", "mainImage": photo}]
 
         if org and org.short:
             pass_object["subheader"] = utils.google_localized(org.short)
@@ -400,7 +430,15 @@ class EmployeeCard(models.Model):
                 {
                     "id": "org_unit",
                     "header": "Organisationseinheit",
-                    "body": self.organization_name,
+                    "body": self.organization_label,
+                }
+            )
+        for i, o in enumerate(self.organizations[1:], 1):
+            text.append(
+                {
+                    "id": f"org_unit_{i}",
+                    "header": "Weitere Organisationseinheit",
+                    "body": _localized(o.name),
                 }
             )
         if org and org.address:
@@ -435,6 +473,7 @@ class EmployeeCard(models.Model):
         since = timezone.localtime(self.revoked_at or timezone.now())
         pass_object["hexBackgroundColor"] = utils.GOOGLE_REVOKED_BACKGROUND
         pass_object["subheader"] = utils.google_localized("UNGÜLTIG")
+        pass_object.pop("heroImage", None)
         pass_object.pop("barcode", None)
         pass_object.pop("linksModuleData", None)
         pass_object["textModulesData"].insert(

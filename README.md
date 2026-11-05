@@ -87,16 +87,18 @@ paths.
 | `IDCARD_APPLE_WEB_SERVICE_URL` | Base of the pass web service, e.g. `https://api-test.medunigraz.at/idcard/wallet` (HTTPS, no trailing slash) | `None`, passes cannot update |
 | `IDCARD_GOOGLE_ISSUER_ID` | Numeric issuer ID from the Business Console | `3388000000023162641` |
 | `IDCARD_GOOGLE_SERVICE_ACCOUNT` | The service-account JSON key, as a dict | required |
-| `IDCARD_GOOGLE_LOGO_URL` | Public raster logo URL for Google | empty |
+| `IDCARD_GOOGLE_IMAGE_URL` | Public URL of this app's static `idcard/` folder, e.g. `https://api-test.medunigraz.at/static/idcard/` | empty |
 
 The service account's `client_email` must be granted access to the issuer in
 the Wallet Business Console. The same key both authorises the REST calls and
 signs the save link, which is why user OAuth will not do — it cannot run
 headless.
 
-`IDCARD_GOOGLE_LOGO_URL` must be a **public** raster URL (PNG/JPG, not SVG)
-because Google fetches it. Leave it empty in development; Google substitutes a
-generated letter monogram.
+Google fetches the logo, wide logo, banner and no-photo silhouette itself from
+`IDCARD_GOOGLE_IMAGE_URL`, so that folder must be reachable without login
+(`collectstatic` puts the files there). Leave it empty in development; the pass
+then has no logo, banner or silhouette. Employee photos never go through it: they
+are uploaded as private images.
 
 ## URLs
 

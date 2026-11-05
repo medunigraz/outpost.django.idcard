@@ -12,7 +12,7 @@ class IDCardAppConf(AppConf):
     APPLE_WEB_SERVICE_URL = None
     GOOGLE_ISSUER_ID = "3388000000023162641"
     GOOGLE_SERVICE_ACCOUNT = None
-    GOOGLE_LOGO_URL = ""
+    GOOGLE_IMAGE_URL = ""
 
     class Meta:
         prefix = "idcard"
