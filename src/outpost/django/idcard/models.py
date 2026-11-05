@@ -196,12 +196,13 @@ class EmployeeCard(models.Model):
         if self.revoked_at:
             pass_data["voided"] = True
             pass_data["expirationDate"] = self.revoked_at.isoformat()
+            pass_data["backgroundColor"] = utils.APPLE_REVOKED_BACKGROUND
 
         person = self.current_person
         if person is None:
             # Nothing left to show, and the pass must still be served voided.
             pass_data["generic"]["primaryFields"].append(
-                {"key": "status", "label": "STATUS", "value": "Nicht mehr gültig"}
+                {"key": "status", "label": "STATUS", "value": "UNGÜLTIG"}
             )
             return pass_data
 
@@ -263,6 +264,11 @@ class EmployeeCard(models.Model):
                 "value": "This card identifies you as an employee of the Medical University of Graz.",
             }
         )
+
+        if self.revoked_at:
+            # Wallet only files a voided pass away, so the card says it too.
+            pass_data.pop("barcodes", None)
+            sec.insert(0, {"key": "status", "label": "STATUS", "value": "UNGÜLTIG"})
 
         return pass_data
 
@@ -333,9 +339,6 @@ class EmployeeCard(models.Model):
             self.google_pass_id = f"{issuer_id}.{self.person_id}_{uuid.uuid4().hex[:8]}"
             self.save(update_fields=["google_pass_id"])
 
-        person = self.person
-        org = self.organization
-
         pass_object = {
             "id": self.google_pass_id,
             "classId": utils.google_class_id(),
@@ -343,15 +346,26 @@ class EmployeeCard(models.Model):
             "state": "EXPIRED" if self.revoked_at else "ACTIVE",
             "hexBackgroundColor": utils.GOOGLE_BACKGROUND,
             "cardTitle": utils.google_localized("Medizinische Universität Graz"),
-            "header": utils.google_localized(self.full_name),
-            "textModulesData": [
-                {
-                    "id": "employee_id",
-                    "header": "Bedienstetennummer",
-                    "body": str(self.person_id),
-                },
-            ],
+            "textModulesData": [],
         }
+
+        person = self.current_person
+        if person is None:
+            # Nothing left to show, and the object must still read as revoked.
+            pass_object["state"] = "EXPIRED"
+            pass_object["header"] = utils.google_localized("Ausweis ungültig")
+            self.google_mark_revoked(pass_object)
+            return pass_object
+
+        org = self.organization
+        pass_object["header"] = utils.google_localized(self.full_name)
+        pass_object["textModulesData"].append(
+            {
+                "id": "employee_id",
+                "header": "Bedienstetennummer",
+                "body": str(self.person_id),
+            }
+        )
 
         # Google fetches the logo from a public raster URL (PNG/JPG, not SVG),
         # so it is left out unless one is configured.
@@ -411,7 +425,26 @@ class EmployeeCard(models.Model):
                 ],
             }
 
+        if self.revoked_at:
+            self.google_mark_revoked(pass_object)
+
         return pass_object
+
+    def google_mark_revoked(self, pass_object):
+        """Google only moves an expired pass to the archive, so the card says it too."""
+        since = timezone.localtime(self.revoked_at or timezone.now())
+        pass_object["hexBackgroundColor"] = utils.GOOGLE_REVOKED_BACKGROUND
+        pass_object["subheader"] = utils.google_localized("UNGÜLTIG")
+        pass_object.pop("barcode", None)
+        pass_object.pop("linksModuleData", None)
+        pass_object["textModulesData"].insert(
+            0,
+            {
+                "id": "revoked",
+                "header": "Status",
+                "body": f"Ungültig seit {since:%d.%m.%Y}",
+            },
+        )
 
     def google_push(self):
         """Create or update this card's object at Google. Idempotent.
@@ -419,18 +452,16 @@ class EmployeeCard(models.Model):
         Also the path for live updates and revocation.
         """
         try:
+            pass_object = self.google_object()
             session = utils.google_session()
-            url = f"{utils.GOOGLE_WALLET_API}/genericObject/{self.google_pass_id}"
-            if self.current_person is None:
-                # Nothing left to rebuild the object from, so only expire it.
-                resp = session.patch(url, json={"state": "EXPIRED"})
-            else:
-                pass_object = self.google_object()
-                resp = session.post(
-                    f"{utils.GOOGLE_WALLET_API}/genericObject", json=pass_object
+            resp = session.post(
+                f"{utils.GOOGLE_WALLET_API}/genericObject", json=pass_object
+            )
+            if resp.status_code == 409:
+                resp = session.put(
+                    f"{utils.GOOGLE_WALLET_API}/genericObject/{self.google_pass_id}",
+                    json=pass_object,
                 )
-                if resp.status_code == 409:
-                    resp = session.put(url, json=pass_object)
             if resp.status_code not in (200, 201):
                 logger.warning(
                     f"Google Wallet object upsert returned {resp.status_code}: {resp.text}"

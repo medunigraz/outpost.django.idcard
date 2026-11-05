@@ -40,6 +40,9 @@ GOOGLE_REQUIRED_SETTINGS = ("IDCARD_GOOGLE_ISSUER_ID", "IDCARD_GOOGLE_SERVICE_AC
 
 # MedUni corporate dark green, the same colour the Apple pass sets as rgb(0, 124, 49).
 GOOGLE_BACKGROUND = "#007c31"
+# Revoked cards turn grey on both platforms.
+GOOGLE_REVOKED_BACKGROUND = "#6b6b6b"
+APPLE_REVOKED_BACKGROUND = "rgb(107, 107, 107)"
 
 _google_credentials = None
 
