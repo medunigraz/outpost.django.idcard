@@ -4,6 +4,7 @@ import uuid
 import zipfile
 from functools import cached_property
 from io import BytesIO
+from urllib.parse import urlsplit
 
 from django.db import models
 from django.utils import translation
@@ -15,6 +16,8 @@ from . import utils
 from .conf import settings
 
 logger = logging.getLogger(__name__)
+
+VISITENKARTE_URL = "https://online.medunigraz.at/mug_online/visitenkarte.show_vcard"
 
 
 def _title_part(hstore, key):
@@ -99,6 +102,16 @@ class EmployeeCard(models.Model):
     def organization_name(self):
         return _localized(self.organization.name) if self.organization else ""
 
+    @property
+    def visitenkarte(self):
+        """CAMPUSonline's qline link only resolves inside the MedUni network."""
+        url = self.person.card
+        parts = urlsplit(url or "")
+        qline = parts.hostname == "qline.medunigraz.at"
+        if qline and parts.path.endswith("/visitenkarte.show_vcard"):
+            return f"{VISITENKARTE_URL}?{parts.query}"
+        return url
+
     # A row exists as soon as someone opens the page, so it does not mean a
     # pass was issued. These two do: the ids are set when a pass is generated.
     @property
@@ -182,13 +195,14 @@ class EmployeeCard(models.Model):
         if org and org.email:
             back.append({"key": "oe_email", "label": "E-Mail (OE)", "value": org.email})
 
-        if person.card:
+        visitenkarte = self.visitenkarte
+        if visitenkarte:
             back.append(
-                {"key": "visitenkarte", "label": "Visitenkarte", "value": person.card}
+                {"key": "visitenkarte", "label": "Visitenkarte", "value": visitenkarte}
             )
             pass_data["barcodes"] = [
                 {
-                    "message": person.card,
+                    "message": visitenkarte,
                     "format": "PKBarcodeFormatQR",
                     "messageEncoding": "iso-8859-1",
                 }
@@ -336,12 +350,13 @@ class EmployeeCard(models.Model):
         if org and org.email:
             text.append({"id": "oe_email", "header": "E-Mail (OE)", "body": org.email})
 
-        if person.card:
-            pass_object["barcode"] = {"type": "QR_CODE", "value": person.card}
+        visitenkarte = self.visitenkarte
+        if visitenkarte:
+            pass_object["barcode"] = {"type": "QR_CODE", "value": visitenkarte}
             pass_object["linksModuleData"] = {
                 "uris": [
                     {
-                        "uri": person.card,
+                        "uri": visitenkarte,
                         "description": "Visitenkarte",
                         "id": "visitenkarte",
                     }
