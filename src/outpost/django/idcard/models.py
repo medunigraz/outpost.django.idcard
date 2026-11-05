@@ -109,14 +109,20 @@ class EmployeeCard(models.Model):
             return None
 
     @property
-    def full_name(self):
+    def name_parts(self):
+        """Title prefix, first and last name, post-nominal."""
         person = self.person
-        prefix = _title_part(person.academic_title, "prefix")
-        suffix = _title_part(person.academic_title, "suffix")
-        name = " ".join(p for p in (prefix, person.first_name, person.last_name) if p)
-        if suffix:
-            name = f"{name}, {suffix}"
-        return name
+        return (
+            _title_part(person.academic_title, "prefix"),
+            " ".join(p for p in (person.first_name, person.last_name) if p),
+            _title_part(person.academic_title, "suffix"),
+        )
+
+    @property
+    def full_name(self):
+        prefix, name, suffix = self.name_parts
+        name = f"{prefix} {name}".strip()
+        return f"{name}, {suffix}" if suffix else name
 
     @cached_property
     def organizations(self):
@@ -163,12 +169,12 @@ class EmployeeCard(models.Model):
         avatar = person.avatar_private if person else None
         if avatar:
             try:
-                return utils.apple_strip(bytes(avatar), scale)
+                return utils.apple_strip(bytes(avatar), scale, self.name_parts)
             except (UnidentifiedImageError, OSError) as e:
                 logger.error(
                     f"Could not process photo for employee {self.person_id}: {e}; using the silhouette."
                 )
-        return utils.apple_strip(None, scale)
+        return utils.apple_strip(None, scale, self.name_parts)
 
     def apple_assign_ids(self):
         """Serial and web service token, fixed for the life of the pass."""
@@ -194,11 +200,11 @@ class EmployeeCard(models.Model):
             "backgroundColor": "rgb(0, 124, 49)",
             "foregroundColor": "rgb(255, 255, 255)",
             "labelColor": "rgb(255, 255, 255)",
-            # A store card, because only that style takes a strip image. The
-            # photo is drawn into the strip, as store cards have no thumbnail.
+            # A store card, because only that style takes a strip image. Photo
+            # and name are drawn into the strip: store cards have no thumbnail,
+            # and Wallet draws the primary field across the photo.
             "storeCard": {
                 "headerFields": [],
-                "primaryFields": [],
                 "secondaryFields": [],
                 "auxiliaryFields": [],
                 "backFields": [],
@@ -216,16 +222,18 @@ class EmployeeCard(models.Model):
         person = self.current_person
         if person is None:
             # Nothing left to show, and the pass must still be served voided.
-            card["primaryFields"].append(
+            card["primaryFields"] = [
                 {"key": "status", "label": "STATUS", "value": "UNGÜLTIG"}
-            )
+            ]
             return pass_data
 
         org = self.organization
         pass_data["description"] = f"MedUni Graz Employee ID - {self.full_name}"
-        card["primaryFields"].append(
-            {"key": "name", "label": "NAME", "value": self.full_name}
-        )
+        if self.revoked_at:
+            # No strip on a voided pass, so the name goes back into the field.
+            card["primaryFields"] = [
+                {"key": "name", "label": "NAME", "value": self.full_name}
+            ]
 
         sec = card["secondaryFields"]
         back = card["backFields"]
@@ -246,6 +254,7 @@ class EmployeeCard(models.Model):
             {"key": "id", "label": "BEDIENSTETENNUMMER", "value": str(self.person_id)}
         )
 
+        back.append({"key": "full_name", "label": "Name", "value": self.full_name})
         for i, o in enumerate(self.organizations):
             back.append(
                 {

@@ -21,6 +21,8 @@ from PIL import (
     Image,
     ImageChops,
     ImageDraw,
+    ImageFilter,
+    ImageFont,
     ImageOps,
 )
 
@@ -33,6 +35,10 @@ APPLE_IMAGES = ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png", "logo@3x.p
 # Store card strip in points; the artwork is drawn at @3x.
 APPLE_STRIP_SIZE = (375, 144)
 APPLE_BACKGROUND = (0, 124, 49)
+APPLE_FONT = Path(__file__).parent / "fonts" / "InterDisplay-Regular.otf"
+# Font sizes in points, largest first; text that fits at none gets an ellipsis.
+APPLE_NAME_SIZES = range(28, 17, -1)
+APPLE_TITLE_SIZES = (13, 12, 11)
 # Pass updates are only delivered by the production environment, never the sandbox.
 APNS_URL = "https://api.push.apple.com/3/device"
 
@@ -89,10 +95,32 @@ def cover(data, width, height):
     return ImageOps.fit(src, (width, height), Image.LANCZOS, centering=(0.5, 0.4))
 
 
-def apple_strip(data, scale):
-    """Campus artwork over the card green, the photo framed on the right.
+def wrap(text, font, width, lines=2):
+    """Break text at spaces into at most `lines` lines, ellipsis if it still overflows."""
+    out = [""]
+    for word in text.split():
+        candidate = f"{out[-1]} {word}".strip()
+        if not out[-1] or font.getlength(candidate) <= width:
+            out[-1] = candidate
+        else:
+            out.append(word)
+    fits = len(out) <= lines and all(font.getlength(line) <= width for line in out)
+    if not fits:
+        cut = len(out) > lines
+        out = out[:lines]
+        for i, line in enumerate(out):
+            if (cut and i == len(out) - 1) or font.getlength(line) > width:
+                while line and font.getlength(line + "…") > width:
+                    line = line[:-1]
+                out[i] = line.rstrip() + "…"
+    return out, fits
 
-    With `data` None the frame holds the silhouette instead.
+
+def apple_strip(data, scale, name=None):
+    """Campus artwork over the card green, the photo framed on the right, the name beside it.
+
+    Wallet draws a store card's primary field across the whole strip, so the
+    name is drawn here instead. With `data` None the frame holds the silhouette.
     """
     width, height = APPLE_STRIP_SIZE[0] * scale, APPLE_STRIP_SIZE[1] * scale
     strip = Image.new("RGBA", (width, height), APPLE_BACKGROUND + (255,))
@@ -122,7 +150,50 @@ def apple_strip(data, scale):
         outline=(255, 255, 255, 255),
         width=border,
     )
+    if name:
+        draw_name(strip, name, scale, 16 * scale, x - 16 * scale, y + photo_h // 2)
     return strip.convert("RGB")
+
+
+def fit(text, sizes, width, lines):
+    """The largest font that fits text into `lines` lines, else the smallest, cut."""
+    for size in sizes:
+        font = ImageFont.truetype(str(APPLE_FONT), size)
+        out, fits = wrap(text, font, width, lines)
+        if fits:
+            break
+    return [(line, font) for line in out]
+
+
+def draw_name(strip, name, scale, left, right, middle):
+    """Name in up to two lines, titles small above and below, centred on middle.
+
+    `name` is (title prefix, first and last name, post-nominal), so a long
+    title can never push the surname off the strip.
+    """
+    prefix, name, suffix = name
+    width = right - left
+    titles = [s * scale for s in APPLE_TITLE_SIZES]
+    rows = fit(name, [s * scale for s in APPLE_NAME_SIZES], width, 2)
+    if prefix:
+        rows = fit(prefix, titles, width, 1) + rows
+    if suffix:
+        rows += fit(suffix, titles, width, 1)
+    heights = [round(font.size * 1.2) for _, font in rows]
+    top = middle - sum(heights) // 2
+    shadow = Image.new("RGBA", strip.size, (0, 0, 0, 0))
+    text = Image.new("RGBA", strip.size, (0, 0, 0, 0))
+    for (line, font), height in zip(rows, heights):
+        pos = (left, top + height // 2)
+        ImageDraw.Draw(shadow).text(
+            pos, line, font=font, fill=(0, 60, 22, 200), anchor="lm"
+        )
+        ImageDraw.Draw(text).text(
+            pos, line, font=font, fill=(255, 255, 255, 255), anchor="lm"
+        )
+        top += height
+    strip.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(3 * scale)))
+    strip.alpha_composite(text)
 
 
 def apple_images():
