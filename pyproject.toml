@@ -18,6 +18,7 @@ dependencies = [
     "pillow",
     "qrcode[pil]",
     "google-auth[requests]",
+    "httpx[http2]",
 ]
 
 [project.urls]

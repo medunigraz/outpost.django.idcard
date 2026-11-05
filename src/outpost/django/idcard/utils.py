@@ -1,10 +1,13 @@
 import hashlib
 import json
 import logging
+import ssl
+import tempfile
 import time
 from io import BytesIO
 from pathlib import Path
 
+import httpx
 from cryptography import x509
 from cryptography.hazmat.primitives import (
     hashes,
@@ -24,6 +27,8 @@ from .conf import settings
 logger = logging.getLogger(__name__)
 
 APPLE_IMAGES = ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png")
+# Pass updates are only delivered by the production environment, never the sandbox.
+APNS_URL = "https://api.push.apple.com/3/device"
 
 GOOGLE_SCOPES = ["https://www.googleapis.com/auth/wallet_object.issuer"]
 GOOGLE_WALLET_API = "https://walletobjects.googleapis.com/walletobjects/v1"
@@ -121,6 +126,42 @@ def apple_sign(manifest):
             [pkcs7.PKCS7Options.DetachedSignature, pkcs7.PKCS7Options.Binary],
         )
     )
+
+
+def apns_ssl_context():
+    """TLS client context authenticating as the Pass Type ID certificate.
+
+    ssl only loads a certificate chain from files, so they exist for the
+    duration of this call only.
+    """
+    context = ssl.create_default_context()
+    with tempfile.TemporaryDirectory() as tmp:
+        cert, key = Path(tmp) / "cert.pem", Path(tmp) / "key.pem"
+        cert.write_bytes(pem(settings.IDCARD_APPLE_CERTIFICATE))
+        key.write_bytes(pem(settings.IDCARD_APPLE_KEY))
+        context.load_cert_chain(cert, key, password=settings.IDCARD_APPLE_KEY_PASSWORD)
+    return context
+
+
+def apns_push(tokens):
+    """Send Wallet's empty update push to each device. Returns the tokens APNs no longer knows."""
+    gone = []
+    with httpx.Client(http2=True, verify=apns_ssl_context(), timeout=10) as client:
+        for token in tokens:
+            try:
+                resp = client.post(
+                    f"{APNS_URL}/{token}",
+                    headers={"apns-topic": settings.IDCARD_APPLE_PASS_TYPE_ID},
+                    content=b"{}",
+                )
+            except httpx.HTTPError as e:
+                logger.error(f"APNs push failed: {e}")
+                continue
+            if resp.status_code == 410:
+                gone.append(token)
+            elif resp.status_code != 200:
+                logger.warning(f"APNs push returned {resp.status_code}: {resp.text}")
+    return gone
 
 
 def google_missing_settings():

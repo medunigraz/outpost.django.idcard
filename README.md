@@ -24,10 +24,15 @@ in the admin and the API, to holders of `idcard.view_employeecard`. Photos come 
 `Person.avatar_private`, served through campusonline's `PrivateAvatarView`,
 never CAMPUSonline's public avatar URL.
 
-Not built yet: pushing updates to an Apple pass already on a phone, and marking
-a pass expired when someone leaves. Google passes can already be re-pushed, see
-Tasks. Neither Apple nor Google
-can delete a pass off a phone, so revocation means showing it as expired.
+A card is revoked when its person is no longer employed or has dropped out of
+CAMPUSonline, or by hand in the admin. Neither Apple nor Google can delete a
+pass off a phone, so revocation means showing it as expired: Google sets the
+object to `EXPIRED`, Apple serves the pass `voided`. The nightly
+`Card:synchronize` revokes and pushes changed passes to both platforms.
+
+Apple passes only update when they carry `webServiceURL`, which is fixed into
+each pass when it is signed. Passes issued without `IDCARD_APPLE_WEB_SERVICE_URL`,
+or for a host that later goes away, can never be updated or revoked.
 
 ## Install
 
@@ -41,8 +46,8 @@ Add `outpost.django.idcard` to `INSTALLED_APPS`, then:
 python -m django migrate idcard
 ```
 
-URLs mount at `/idcard/` through the usual `outpost.django.urls` discovery.
-There is no `endpoints.py`; this app is HTML only, nothing on `/v1/`.
+URLs mount at `/idcard/` through the usual `outpost.django.urls` discovery,
+the API at `/v1/idcard/` through `endpoints.py`.
 
 `outpost.django.campusonline` must be installed: all employee data comes from
 its `Person` model.
@@ -79,6 +84,7 @@ paths.
 | `IDCARD_APPLE_KEY` | Its private key, PEM | required |
 | `IDCARD_APPLE_KEY_PASSWORD` | Key password, if the key is encrypted | `None` |
 | `IDCARD_APPLE_WWDR_CERTIFICATE` | Apple WWDR intermediate certificate, PEM | required |
+| `IDCARD_APPLE_WEB_SERVICE_URL` | Base of the pass web service, e.g. `https://api-test.medunigraz.at/idcard/wallet` (HTTPS, no trailing slash) | `None`, passes cannot update |
 | `IDCARD_GOOGLE_ISSUER_ID` | Numeric issuer ID from the Business Console | `3388000000023162641` |
 | `IDCARD_GOOGLE_SERVICE_ACCOUNT` | The service-account JSON key, as a dict | required |
 | `IDCARD_GOOGLE_LOGO_URL` | Public raster logo URL for Google | empty |
@@ -99,21 +105,25 @@ generated letter monogram.
 | `/idcard/my-pass/` | The employee's own card | Any employee |
 | `/idcard/my-pass/apple/` | Download their own `.pkpass` | Any employee |
 | `/idcard/my-pass/google/` | Redirect to their own Google save link | Any employee |
+| `/idcard/wallet/v1/...` | Apple pass web service (register, unregister, changed serials, latest pass, log) | Apple Wallet, authenticated per pass |
 | `/v1/idcard/card/` | Cards as JSON, `?expand=person` for the CAMPUSonline data | Own card; all with `idcard.view_employeecard` |
 
-All cards are listed in the Django admin. Its actions "Download Apple pass" and
-"Re-push Google pass" need the `idcard.manage_passes` permission, which an
-admin grants to a hand-made group.
+All cards are listed in the Django admin. Its actions "Download Apple pass",
+"Re-push Google pass", "Revoke card" and "Reactivate card" need the
+`idcard.manage_passes` permission, which an admin grants to a hand-made group.
+Revoke and reactivate run immediately, without a Celery worker. A card whose
+person is not employed stays revoked.
 
 ## Tasks
 
 | Task | What |
 |---|---|
 | `outpost.django.idcard.tasks.Card:google_push` | Push one card's current data to Google |
-| `outpost.django.idcard.tasks.Card:synchronize` | Push every card that has a Google pass |
+| `outpost.django.idcard.tasks.Card:synchronize` | Revoke cards of people no longer employed, push every card whose content changed to Google and Apple |
 
-Schedule `Card:synchronize` with a periodic task in the admin to keep Google
-passes current.
+Schedule `Card:synchronize` nightly with a periodic task in the admin. Apple
+pushes go to the APNs production environment with the Pass Type ID certificate,
+so the server needs outbound HTTPS to `api.push.apple.com`.
 
 ## Other
 

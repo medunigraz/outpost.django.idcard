@@ -20,9 +20,9 @@ class EmployeeCardAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         "has_photo",
         "has_apple_pass",
         "has_google_pass",
+        "revoked_at",
         "created_at",
     )
-    list_select_related = ("person",)
     search_fields = (
         "=person__id",
         "person__first_name",
@@ -30,16 +30,21 @@ class EmployeeCardAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         "person__username",
     )
     list_filter = (
+        ("revoked_at", admin.EmptyFieldListFilter),
         "created_at",
         ("apple_pass_serial", admin.EmptyFieldListFilter),
         ("google_pass_id", admin.EmptyFieldListFilter),
     )
     fieldsets = (
-        (None, {"fields": ("person",)}),
+        (None, {"fields": ("person", "revoked_at")}),
         (
             _("Pass metadata"),
             {
-                "fields": ("apple_pass_serial", "google_pass_id"),
+                "fields": (
+                    "apple_pass_serial",
+                    "google_pass_id",
+                    "pass_updated_at",
+                ),
                 "classes": ("collapse",),
             },
         ),
@@ -48,19 +53,22 @@ class EmployeeCardAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
-    actions = ("apple_pass", "google_push")
+    actions = ("apple_pass", "google_push", "revoke", "reactivate")
 
     def has_manage_passes_permission(self, request):
         """Does the user have the manage_passes permission?"""
         return request.user.has_perm(f"{self.opts.app_label}.manage_passes")
 
+    # No list_select_related and no bare obj.person: cards whose Person left
+    # the CAMPUSonline matview must stay listed, they are the revoked ones.
     def full_name(self, obj):
-        return obj.full_name
+        return obj.full_name if obj.current_person else "-"
 
     full_name.short_description = _("Name")
 
     def has_photo(self, obj):
-        return bool(obj.person.hash)
+        person = obj.current_person
+        return bool(person and person.hash)
 
     has_photo.boolean = True
     has_photo.short_description = _("Photo")
@@ -111,3 +119,28 @@ class EmployeeCardAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
 
     google_push.short_description = _("Re-push Google pass")
     google_push.allowed_permissions = ("manage_passes",)
+
+    # Synchronous, unlike the re-push: an admin revoking a card wants it done
+    # now, and it must not depend on a worker listening on maintenance.
+    def revoke(self, request, queryset):
+        cards = list(queryset.filter(revoked_at=None))
+        for card in cards:
+            card.revoke()
+        self.message_user(request, _("%i cards revoked.") % len(cards))
+
+    revoke.short_description = _("Revoke card")
+    revoke.allowed_permissions = ("manage_passes",)
+
+    def reactivate(self, request, queryset):
+        count = 0
+        for card in queryset.exclude(revoked_at=None):
+            card.reactivate()
+            count += card.revoked_at is None
+        self.message_user(
+            request,
+            _("%i cards reactivated. Cards of people no longer employed stay revoked.")
+            % count,
+        )
+
+    reactivate.short_description = _("Reactivate card")
+    reactivate.allowed_permissions = ("manage_passes",)

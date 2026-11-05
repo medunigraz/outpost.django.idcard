@@ -16,8 +16,13 @@ class CardTasks:
 
     @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Card:synchronize")
     def synchronize(task):
-        logger.info("Pushing current CAMPUSonline data to all Google Wallet objects")
-        for card in EmployeeCard.objects.exclude(google_pass_id=None).select_related(
-            "person"
-        ):
-            card.google_push()
+        logger.info("Revoking and pushing cards against current CAMPUSonline data")
+        # No select_related: its inner join would skip cards whose Person is gone,
+        # and those are exactly the ones to revoke.
+        pushed = 0
+        for card in EmployeeCard.objects.all():
+            try:
+                pushed += card.synchronize()
+            except Exception:
+                logger.exception(f"Synchronizing {card} failed")
+        logger.info(f"Pushed {pushed} changed cards")

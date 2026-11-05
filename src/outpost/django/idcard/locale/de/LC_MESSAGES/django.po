@@ -64,3 +64,54 @@ msgstr "Der QR-Code auf dem Ausweis verweist auf Ihre offizielle MedUni-Visitenk
 
 msgid "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card."
 msgstr "Foto und Angaben werden aus CAMPUSonline übernommen. Aktualisierungen erscheinen, sobald Sie den Ausweis neu erstellen."
+
+msgid "Employee ID card"
+msgstr "Mitarbeiterausweis"
+
+msgid "Employee ID cards"
+msgstr "Mitarbeiterausweise"
+
+msgid "Can download, re-push and revoke any employee's passes"
+msgstr "Kann die Pässe aller Mitarbeitenden herunterladen, neu senden und widerrufen"
+
+msgid "Pass metadata"
+msgstr "Pass-Metadaten"
+
+msgid "Timestamps"
+msgstr "Zeitstempel"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Photo"
+msgstr "Foto"
+
+msgid "Apple"
+msgstr "Apple"
+
+msgid "Google"
+msgstr "Google"
+
+msgid "Select exactly one card to download its Apple pass."
+msgstr "Wählen Sie genau einen Ausweis, um seinen Apple-Pass herunterzuladen."
+
+msgid "Download Apple pass"
+msgstr "Apple-Pass herunterladen"
+
+msgid "%i queued for pushing to Google. Cards without a Google pass were skipped."
+msgstr "%i zum Senden an Google eingereiht. Ausweise ohne Google-Pass wurden übersprungen."
+
+msgid "Re-push Google pass"
+msgstr "Google-Pass neu senden"
+
+msgid "%i cards revoked."
+msgstr "%i Ausweise widerrufen."
+
+msgid "Revoke card"
+msgstr "Ausweis widerrufen"
+
+msgid "%i cards reactivated. Cards of people no longer employed stay revoked."
+msgstr "%i Ausweise reaktiviert. Ausweise von nicht mehr Beschäftigten bleiben widerrufen."
+
+msgid "Reactivate card"
+msgstr "Ausweis reaktivieren"

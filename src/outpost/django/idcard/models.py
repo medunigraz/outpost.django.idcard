@@ -1,5 +1,7 @@
+import hashlib
 import json
 import logging
+import secrets
 import uuid
 import zipfile
 from functools import cached_property
@@ -7,9 +9,13 @@ from io import BytesIO
 from urllib.parse import urlsplit
 
 from django.db import models
-from django.utils import translation
+from django.utils import (
+    timezone,
+    translation,
+)
 from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
+from outpost.django.campusonline.models import Person
 from PIL import UnidentifiedImageError
 
 from . import utils
@@ -53,6 +59,9 @@ class EmployeeCard(models.Model):
     ### `has_google_pass` (`boolean`)
     A Google Wallet pass has been issued.
 
+    ### `revoked_at` (`datetime`)
+    When the card was revoked, or `null` while it is valid.
+
     ### `created_at` (`datetime`)
     When the employee first opened their card page.
 
@@ -69,6 +78,10 @@ class EmployeeCard(models.Model):
     google_pass_id = models.CharField(
         max_length=100, blank=True, null=True, unique=True
     )
+    apple_auth_token = models.CharField(max_length=64, blank=True, null=True)
+    revoked_at = models.DateTimeField(blank=True, null=True)
+    pass_hash = models.CharField(max_length=40, blank=True, null=True)
+    pass_updated_at = models.DateTimeField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -78,11 +91,22 @@ class EmployeeCard(models.Model):
         verbose_name = _("Employee ID card")
         verbose_name_plural = _("Employee ID cards")
         permissions = (
-            ("manage_passes", _("Can download and re-push any employee's passes")),
+            (
+                "manage_passes",
+                _("Can download, re-push and revoke any employee's passes"),
+            ),
         )
 
     def __str__(self):
         return f"Employee ID Card {self.person_id}"
+
+    @property
+    def current_person(self):
+        """The Person, or None once they dropped out of the CAMPUSonline matview."""
+        try:
+            return self.person
+        except Person.DoesNotExist:
+            return None
 
     @property
     def full_name(self):
@@ -124,7 +148,8 @@ class EmployeeCard(models.Model):
 
     def thumbnail(self, size):
         """The photo as a square, or the silhouette when there is none."""
-        avatar = self.person.avatar_private
+        person = self.current_person
+        avatar = person.avatar_private if person else None
         if avatar:
             try:
                 return utils.square(bytes(avatar), size)
@@ -134,34 +159,57 @@ class EmployeeCard(models.Model):
                 )
         return utils.silhouette(size)
 
-    @translation.override("de")
-    def apple_pass_json(self):
+    def apple_assign_ids(self):
+        """Serial and web service token, fixed for the life of the pass."""
+        changed = []
         if not self.apple_pass_serial:
             self.apple_pass_serial = str(uuid.uuid4())
-            self.save()
+            changed.append("apple_pass_serial")
+        if not self.apple_auth_token:
+            self.apple_auth_token = secrets.token_hex(32)
+            changed.append("apple_auth_token")
+        if changed:
+            self.save(update_fields=changed)
 
-        person = self.person
-        org = self.organization
-
+    @translation.override("de")
+    def apple_pass_json(self):
         pass_data = {
             "formatVersion": 1,
             "passTypeIdentifier": settings.IDCARD_APPLE_PASS_TYPE_ID,
             "serialNumber": self.apple_pass_serial,
             "teamIdentifier": settings.IDCARD_APPLE_TEAM_ID,
             "organizationName": "MedUni Graz",
-            "description": f"MedUni Graz Employee ID - {self.full_name}",
+            "description": "MedUni Graz Employee ID",
             "backgroundColor": "rgb(0, 124, 49)",
             "foregroundColor": "rgb(255, 255, 255)",
             "labelColor": "rgb(255, 255, 255)",
             "generic": {
-                "primaryFields": [
-                    {"key": "name", "label": "NAME", "value": self.full_name}
-                ],
+                "primaryFields": [],
                 "secondaryFields": [],
                 "auxiliaryFields": [],
                 "backFields": [],
             },
         }
+        if settings.IDCARD_APPLE_WEB_SERVICE_URL:
+            pass_data["webServiceURL"] = settings.IDCARD_APPLE_WEB_SERVICE_URL
+            pass_data["authenticationToken"] = self.apple_auth_token
+        if self.revoked_at:
+            pass_data["voided"] = True
+            pass_data["expirationDate"] = self.revoked_at.isoformat()
+
+        person = self.current_person
+        if person is None:
+            # Nothing left to show, and the pass must still be served voided.
+            pass_data["generic"]["primaryFields"].append(
+                {"key": "status", "label": "STATUS", "value": "Nicht mehr gültig"}
+            )
+            return pass_data
+
+        org = self.organization
+        pass_data["description"] = f"MedUni Graz Employee ID - {self.full_name}"
+        pass_data["generic"]["primaryFields"].append(
+            {"key": "name", "label": "NAME", "value": self.full_name}
+        )
 
         sec = pass_data["generic"]["secondaryFields"]
         aux = pass_data["generic"]["auxiliaryFields"]
@@ -224,6 +272,7 @@ class EmployeeCard(models.Model):
         With `signed=False` Wallet rejects the file, but it can still be
         unzipped and inspected.
         """
+        self.apple_assign_ids()
         files = {
             "pass.json": json.dumps(self.apple_pass_json(), indent=2).encode("utf-8")
         }
@@ -291,8 +340,7 @@ class EmployeeCard(models.Model):
             "id": self.google_pass_id,
             "classId": utils.google_class_id(),
             "genericType": "GENERIC_TYPE_UNSPECIFIED",
-            # Phase B flips this to EXPIRED on revocation.
-            "state": "ACTIVE",
+            "state": "EXPIRED" if self.revoked_at else "ACTIVE",
             "hexBackgroundColor": utils.GOOGLE_BACKGROUND,
             "cardTitle": utils.google_localized("Medizinische Universität Graz"),
             "header": utils.google_localized(self.full_name),
@@ -368,19 +416,21 @@ class EmployeeCard(models.Model):
     def google_push(self):
         """Create or update this card's object at Google. Idempotent.
 
-        Also the path for live updates and, in Phase B, revocation.
+        Also the path for live updates and revocation.
         """
         try:
-            pass_object = self.google_object()
             session = utils.google_session()
-            resp = session.post(
-                f"{utils.GOOGLE_WALLET_API}/genericObject", json=pass_object
-            )
-            if resp.status_code == 409:
-                resp = session.put(
-                    f"{utils.GOOGLE_WALLET_API}/genericObject/{self.google_pass_id}",
-                    json=pass_object,
+            url = f"{utils.GOOGLE_WALLET_API}/genericObject/{self.google_pass_id}"
+            if self.current_person is None:
+                # Nothing left to rebuild the object from, so only expire it.
+                resp = session.patch(url, json={"state": "EXPIRED"})
+            else:
+                pass_object = self.google_object()
+                resp = session.post(
+                    f"{utils.GOOGLE_WALLET_API}/genericObject", json=pass_object
                 )
+                if resp.status_code == 409:
+                    resp = session.put(url, json=pass_object)
             if resp.status_code not in (200, 201):
                 logger.warning(
                     f"Google Wallet object upsert returned {resp.status_code}: {resp.text}"
@@ -402,3 +452,67 @@ class EmployeeCard(models.Model):
                 f"Google Wallet object upsert failed for employee {self.person_id}; see the log for Google's response."
             )
         return utils.google_save_link(self.google_pass_id)
+
+    def apple_push(self):
+        """Ask every device holding this pass to fetch it again."""
+        tokens = list(self.apple_registrations.values_list("push_token", flat=True))
+        if not tokens:
+            return
+        gone = utils.apns_push(tokens)
+        if gone:
+            self.apple_registrations.filter(push_token__in=gone).delete()
+
+    def content_hash(self):
+        """Digest of what the passes show, to push only on change."""
+        person = self.current_person
+        content = json.dumps(self.apple_pass_json(), sort_keys=True)
+        photo = (person.hash or "") if person else ""
+        return hashlib.sha1(f"{content}|{photo}".encode()).hexdigest()
+
+    def synchronize(self):
+        """Revoke if no longer employed, then push both passes if they changed.
+
+        Returns whether anything was pushed.
+        """
+        person = self.current_person
+        if not self.revoked_at and (person is None or not person.employed):
+            self.revoked_at = timezone.now()
+        # Revoking voids the Apple pass, so it always changes the digest.
+        digest = self.content_hash()
+        if digest == self.pass_hash:
+            return False
+        self.pass_hash = digest
+        self.pass_updated_at = timezone.now()
+        self.save(update_fields=["revoked_at", "pass_hash", "pass_updated_at"])
+        if self.has_google_pass:
+            self.google_push()
+        if self.has_apple_pass:
+            self.apple_push()
+        return True
+
+    def revoke(self):
+        self.revoked_at = timezone.now()
+        return self.synchronize()
+
+    def reactivate(self):
+        """Undo a revocation. The next synchronize revokes again unless employed."""
+        self.revoked_at = None
+        return self.synchronize()
+
+
+class AppleRegistration(models.Model):
+    """A device that added a card's Apple pass, as reported by Wallet."""
+
+    card = models.ForeignKey(
+        EmployeeCard, on_delete=models.CASCADE, related_name="apple_registrations"
+    )
+    device = models.CharField(max_length=128)
+    push_token = models.CharField(max_length=256)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(
+                fields=("card", "device"), name="idcard_appleregistration_unique"
+            ),
+        )

@@ -1,13 +1,21 @@
 import base64
 import io
+import json
 import logging
 import re
+from datetime import (
+    datetime,
+    timezone,
+)
 
 import qrcode
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Max
 from django.http import (
+    Http404,
     HttpResponse,
     HttpResponseRedirect,
+    JsonResponse,
 )
 from django.shortcuts import (
     get_object_or_404,
@@ -16,8 +24,14 @@ from django.shortcuts import (
 )
 from django.urls import reverse
 from django.utils import translation
+from django.utils.crypto import constant_time_compare
 from django.utils.decorators import method_decorator
 from django.utils.html import escape
+from django.utils.http import (
+    http_date,
+    parse_http_date_safe,
+)
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.vary import vary_on_headers
 from django.views.generic import (
     TemplateView,
@@ -193,3 +207,99 @@ class GooglePassView(EmployeeCardMixin, View):
                 status=500,
             )
         return HttpResponseRedirect(save_url)
+
+
+# Apple's pass web service, called by Wallet itself:
+# https://developer.apple.com/documentation/walletpasses/adding-a-web-service-to-update-passes
+
+
+def _apple_card(request, pass_type, serial):
+    """The card Wallet asks about, or None when its token does not match."""
+    if pass_type != settings.IDCARD_APPLE_PASS_TYPE_ID:
+        raise Http404
+    card = get_object_or_404(models.EmployeeCard, apple_pass_serial=serial)
+    auth = request.headers.get("Authorization", "")
+    if card.apple_auth_token and constant_time_compare(
+        auth, f"ApplePass {card.apple_auth_token}"
+    ):
+        return card
+    return None
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AppleRegistrationView(View):
+    def post(self, request, device, pass_type, serial):
+        card = _apple_card(request, pass_type, serial)
+        if card is None:
+            return HttpResponse(status=401)
+        try:
+            push_token = json.loads(request.body)["pushToken"]
+        except (ValueError, KeyError, TypeError):
+            return HttpResponse(status=400)
+        _, created = models.AppleRegistration.objects.update_or_create(
+            card=card, device=device, defaults={"push_token": push_token}
+        )
+        return HttpResponse(status=201 if created else 200)
+
+    def delete(self, request, device, pass_type, serial):
+        card = _apple_card(request, pass_type, serial)
+        if card is None:
+            return HttpResponse(status=401)
+        card.apple_registrations.filter(device=device).delete()
+        return HttpResponse(status=200)
+
+
+class AppleSerialsView(View):
+    """Serials of this device's passes changed since Wallet's last check."""
+
+    def get(self, request, device, pass_type):
+        if pass_type != settings.IDCARD_APPLE_PASS_TYPE_ID:
+            raise Http404
+        cards = models.EmployeeCard.objects.filter(apple_registrations__device=device)
+        try:
+            since = float(request.GET["passesUpdatedSince"])
+        except (KeyError, ValueError):
+            since = None
+        if since is not None:
+            cards = cards.filter(
+                pass_updated_at__gt=datetime.fromtimestamp(since, tz=timezone.utc)
+            )
+        serials = list(cards.values_list("apple_pass_serial", flat=True))
+        if not serials:
+            return HttpResponse(status=204)
+        last = cards.aggregate(Max("pass_updated_at"))["pass_updated_at__max"]
+        last = last or datetime.now(tz=timezone.utc)
+        # A plain number, so the tag survives Wallet putting it in a query string.
+        return JsonResponse(
+            {"serialNumbers": serials, "lastUpdated": str(last.timestamp())}
+        )
+
+
+class AppleLatestPassView(View):
+    def get(self, request, pass_type, serial):
+        card = _apple_card(request, pass_type, serial)
+        if card is None:
+            return HttpResponse(status=401)
+        modified = int((card.pass_updated_at or card.created_at).timestamp())
+        since = parse_http_date_safe(request.headers.get("If-Modified-Since", ""))
+        if since and modified <= since:
+            return HttpResponse(status=304)
+        response = HttpResponse(
+            card.apple_pass(), content_type="application/vnd.apple.pkpass"
+        )
+        response["Last-Modified"] = http_date(modified)
+        return response
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AppleLogView(View):
+    """Wallet reports web service errors here. Unauthenticated, so capped."""
+
+    def post(self, request):
+        try:
+            logs = json.loads(request.body).get("logs", [])
+        except (ValueError, AttributeError):
+            logs = []
+        for line in logs[:20]:
+            logger.warning(f"Apple Wallet: {str(line)[:500]}")
+        return HttpResponse(status=200)
