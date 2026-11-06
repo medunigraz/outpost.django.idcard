@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Digital ID Cards{% endblock %} - MedUni Graz</title>
+    <title>{% block title %}Digital ID Cards{% endblock %} - Med Uni Graz</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -14,7 +14,7 @@
             background: #f3f5f4;
         }
 
-        a { color: #007c31; }
+        a { color: #007c32; }
 
         header { background: white; border-bottom: 1px solid #e3e8e5; }
         .header-inner {
@@ -37,7 +37,7 @@
         }
 
         .lang-switch-link {
-            color: #007c31;
+            color: #007c32;
             text-decoration: none;
             border: 1px solid #cfe3d6;
             padding: 4px 12px;
@@ -45,7 +45,7 @@
             font-size: 13px;
             white-space: nowrap;
         }
-        .lang-switch-link:hover { background: #f2f9f5; border-color: #007c31; }
+        .lang-switch-link:hover { background: #f2f9f5; border-color: #007c32; }
 
         main { max-width: 560px; margin: 0 auto; padding: 28px 20px 48px; }
 
@@ -64,7 +64,7 @@
             margin-top: 18px;
             padding: 11px 20px;
             border-radius: 10px;
-            background: #007c31;
+            background: #007c32;
             color: white;
             text-decoration: none;
             font-weight: 600;
@@ -84,7 +84,7 @@
 <body>
     <header>
         <div class="header-inner">
-            <img class="header-logo" src="{% static 'idcard/meduni-logo.png' %}" alt="MedUni Graz">
+            <img class="header-logo" src="{% static 'idcard/meduni-logo.png' %}" alt="Med Uni Graz">
             <span class="header-title">{% block header %}Digital ID Cards{% endblock %}</span>
             {% block header_extra %}{% endblock %}
         </div>

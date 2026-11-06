@@ -59,8 +59,8 @@ msgstr "Über Ihren digitalen Ausweis"
 msgid "Your card is for soft identification only (e.g. employee discounts at partner shops)."
 msgstr "Der Ausweis dient nur zur informellen Identifikation (z. B. für Mitarbeiterrabatte in Partnerläden)."
 
-msgid "The QR code on the card links to your official MedUni business card (Visitenkarte)."
-msgstr "Der QR-Code auf dem Ausweis verweist auf Ihre offizielle MedUni-Visitenkarte."
+msgid "The QR code on the card links to your official Med Uni Graz business card (Visitenkarte)."
+msgstr "Der QR-Code auf dem Ausweis verweist auf Ihre offizielle Med Uni Graz-Visitenkarte."
 
 msgid "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card."
 msgstr "Foto und Angaben werden aus CAMPUSonline übernommen. Aktualisierungen erscheinen, sobald Sie den Ausweis neu erstellen."

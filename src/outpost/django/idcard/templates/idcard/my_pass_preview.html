@@ -20,7 +20,7 @@
 <style>
     /* Mirrors the wallet pass: green face, white logo, photo, name, unit. */
     .id-card {
-        background: linear-gradient(145deg, #008a37 0%, #007c31 55%, #006a2a 100%);
+        background: linear-gradient(145deg, #008a37 0%, #007c32 55%, #006a2a 100%);
         color: white;
         border-radius: 18px;
         padding: 20px 22px 24px;
@@ -59,7 +59,7 @@
     .wallet-buttons-android .wallet-badge-google { order: -1; }
     .wallet-badge { display: block; line-height: 0; border-radius: 10px; }
     .wallet-badge img { height: 52px; width: auto; display: block; }
-    .wallet-badge:focus-visible { outline: 3px solid #007c31; outline-offset: 2px; }
+    .wallet-badge:focus-visible { outline: 3px solid #007c32; outline-offset: 2px; }
 
     .qr-row {
         display: flex;
@@ -74,7 +74,7 @@
 
     .about { margin-top: 24px; padding: 0 4px; }
     .about-title { font-size: 14px; font-weight: 600; color: #4a4a4a; margin-bottom: 6px; }
-    .about-list { padding-left: 18px; color: #6b6b6b; font-size: 13.5px; line-height: 1.6; }
+    .about-list { padding-left: 18px; color: #6b6d74; font-size: 13.5px; line-height: 1.6; }
     .about-list li + li { margin-top: 4px; }
 
     @media (max-width: 480px) {
@@ -87,7 +87,7 @@
 
 {% block content %}
 <div class="id-card">
-    <img class="id-card-logo" src="{% static 'idcard/logo@2x.png' %}" alt="MedUni Graz">
+    <img class="id-card-logo" src="{% static 'idcard/logo@2x.png' %}" alt="Med Uni Graz">
     <div class="id-card-body">
         {% if person.hash %}
             <img class="id-card-photo" src="{% url 'campusonline:avatar-private' hash=person.hash %}" alt="{% trans 'Your photo' %}">
@@ -140,7 +140,7 @@
     <h3 class="about-title">{% trans "About your digital ID card" %}</h3>
     <ul class="about-list">
         <li>{% trans "Your card is for soft identification only (e.g. employee discounts at partner shops)." %}</li>
-        <li>{% trans "The QR code on the card links to your official MedUni business card (Visitenkarte)." %}</li>
+        <li>{% trans "The QR code on the card links to your official Med Uni Graz business card (Visitenkarte)." %}</li>
         <li>{% trans "Photo and details are pulled from CAMPUSonline. Updates appear when you regenerate the card." %}</li>
     </ul>
 </section>

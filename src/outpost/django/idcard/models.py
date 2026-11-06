@@ -195,9 +195,9 @@ class EmployeeCard(models.Model):
             "passTypeIdentifier": settings.IDCARD_APPLE_PASS_TYPE_ID,
             "serialNumber": self.apple_pass_serial,
             "teamIdentifier": settings.IDCARD_APPLE_TEAM_ID,
-            "organizationName": "MedUni Graz",
-            "description": "MedUni Graz Employee ID",
-            "backgroundColor": "rgb(0, 124, 49)",
+            "organizationName": "Med Uni Graz",
+            "description": "Med Uni Graz Employee ID",
+            "backgroundColor": "rgb{}".format(utils.APPLE_BACKGROUND),
             "foregroundColor": "rgb(255, 255, 255)",
             "labelColor": "rgb(255, 255, 255)",
             # A store card, because only that style takes a strip image. Photo
@@ -228,7 +228,7 @@ class EmployeeCard(models.Model):
             return pass_data
 
         org = self.organization
-        pass_data["description"] = f"MedUni Graz Employee ID - {self.full_name}"
+        pass_data["description"] = f"Med Uni Graz Employee ID - {self.full_name}"
         if self.revoked_at:
             # No strip on a voided pass, so the name goes back into the field.
             card["primaryFields"] = [
@@ -407,12 +407,12 @@ class EmployeeCard(models.Model):
         # files are served publicly.
         images = bool(settings.IDCARD_GOOGLE_IMAGE_URL)
         if images:
-            pass_object["logo"] = utils.google_image("google-logo.png", "MedUni Graz")
+            pass_object["logo"] = utils.google_image("google-logo.png", "Med Uni Graz")
             pass_object["wideLogo"] = utils.google_image(
-                "google-wide-logo.png", "MedUni Graz"
+                "google-wide-logo.png", "Med Uni Graz"
             )
             pass_object["heroImage"] = utils.google_image(
-                "google-hero.png", "MED CAMPUS Graz"
+                "google-hero.png", "Med Uni Graz Campus"
             )
 
         private_image_id = self.google_private_image()

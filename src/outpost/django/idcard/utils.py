@@ -21,7 +21,6 @@ from PIL import (
     Image,
     ImageChops,
     ImageDraw,
-    ImageFilter,
     ImageFont,
     ImageOps,
 )
@@ -34,8 +33,15 @@ STATIC = Path(__file__).parent / "static" / "idcard"
 APPLE_IMAGES = ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png", "logo@3x.png")
 # Store card strip in points; the artwork is drawn at @3x.
 APPLE_STRIP_SIZE = (375, 144)
-APPLE_BACKGROUND = (0, 124, 49)
-APPLE_FONT = Path(__file__).parent / "fonts" / "InterDisplay-Regular.otf"
+# Med Uni Graz Dunkelgrün and Grau 1 from the corporate design manual.
+APPLE_BACKGROUND = (0, 124, 50)
+APPLE_REVOKED_BACKGROUND = "rgb(107, 109, 116)"
+# Ubuntu is the corporate font. Variable font, set to Medium.
+APPLE_FONT = Path(__file__).parent / "fonts" / "Ubuntu.ttf"
+APPLE_FONT_WEIGHT = 500
+# How much of the card green covers the artwork behind the name, instead of a
+# text shadow (the manual rules out font effects).
+APPLE_WASH = 0.75
 # Font sizes in points, largest first; text that fits at none gets an ellipsis.
 APPLE_NAME_SIZES = range(28, 17, -1)
 APPLE_TITLE_SIZES = (13, 12, 11)
@@ -50,11 +56,9 @@ GOOGLE_PRIVATE_IMAGE_API = (
 GOOGLE_CLASS_SUFFIX = "meduni_employee_id"
 GOOGLE_REQUIRED_SETTINGS = ("IDCARD_GOOGLE_ISSUER_ID", "IDCARD_GOOGLE_SERVICE_ACCOUNT")
 
-# MedUni corporate dark green, the same colour the Apple pass sets as rgb(0, 124, 49).
-GOOGLE_BACKGROUND = "#007c31"
-# Revoked cards turn grey on both platforms.
-GOOGLE_REVOKED_BACKGROUND = "#6b6b6b"
-APPLE_REVOKED_BACKGROUND = "rgb(107, 107, 107)"
+# The same colours as the Apple pass. Revoked cards turn grey on both platforms.
+GOOGLE_BACKGROUND = "#007c32"
+GOOGLE_REVOKED_BACKGROUND = "#6b6d74"
 
 _google_credentials = None
 
@@ -143,6 +147,8 @@ def apple_strip(data, scale, name=None):
     photo.putalpha(ImageChops.multiply(photo.getchannel("A"), mask))
 
     x, y = width - photo_w - 16 * scale, (height - photo_h) // 2
+    if name:
+        wash(strip, x)
     strip.alpha_composite(photo, (x, y))
     ImageDraw.Draw(strip).rounded_rectangle(
         (x, y, x + photo_w - 1, y + photo_h - 1),
@@ -155,10 +161,22 @@ def apple_strip(data, scale, name=None):
     return strip.convert("RGB")
 
 
+def wash(strip, right):
+    """Card green over the artwork left of `right`, fading out towards it."""
+    ramp = Image.new("L", (strip.width, 1))
+    for i in range(strip.width):
+        v = 1 - (i - right * 0.55) / (right * 0.45)
+        ramp.putpixel((i, 0), int(APPLE_WASH * 255 * max(0, min(1, v))))
+    layer = Image.new("RGBA", strip.size, APPLE_BACKGROUND + (0,))
+    layer.putalpha(ramp.resize(strip.size))
+    strip.alpha_composite(layer)
+
+
 def fit(text, sizes, width, lines):
     """The largest font that fits text into `lines` lines, else the smallest, cut."""
     for size in sizes:
         font = ImageFont.truetype(str(APPLE_FONT), size)
+        font.set_variation_by_axes([100, APPLE_FONT_WEIGHT])
         out, fits = wrap(text, font, width, lines)
         if fits:
             break
@@ -181,19 +199,10 @@ def draw_name(strip, name, scale, left, right, middle):
         rows += fit(suffix, titles, width, 1)
     heights = [round(font.size * 1.2) for _, font in rows]
     top = middle - sum(heights) // 2
-    shadow = Image.new("RGBA", strip.size, (0, 0, 0, 0))
-    text = Image.new("RGBA", strip.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(strip)
     for (line, font), height in zip(rows, heights):
-        pos = (left, top + height // 2)
-        ImageDraw.Draw(shadow).text(
-            pos, line, font=font, fill=(0, 60, 22, 200), anchor="lm"
-        )
-        ImageDraw.Draw(text).text(
-            pos, line, font=font, fill=(255, 255, 255, 255), anchor="lm"
-        )
+        draw.text((left, top + height // 2), line, font=font, fill="white", anchor="lm")
         top += height
-    strip.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(3 * scale)))
-    strip.alpha_composite(text)
 
 
 def apple_images():
