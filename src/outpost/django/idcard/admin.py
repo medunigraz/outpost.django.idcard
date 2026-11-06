@@ -108,7 +108,8 @@ class EmployeeCardAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     def google_push(self, request, queryset):
         cards = queryset.exclude(google_pass_id=None)
         for card in cards:
-            tasks.CardTasks().google_push.apply_async((card.pk,), queue="maintenance")
+            # Spelled as the production worker queue is (outpost.django.research).
+            tasks.CardTasks().google_push.apply_async((card.pk,), queue="maintainance")
         self.message_user(
             request,
             _(
@@ -121,7 +122,7 @@ class EmployeeCardAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     google_push.allowed_permissions = ("manage_passes",)
 
     # Synchronous, unlike the re-push: an admin revoking a card wants it done
-    # now, and it must not depend on a worker listening on maintenance.
+    # now, and it must not depend on a queue worker.
     def revoke(self, request, queryset):
         cards = list(queryset.filter(revoked_at=None))
         for card in cards:

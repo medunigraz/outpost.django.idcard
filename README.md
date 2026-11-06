@@ -123,7 +123,9 @@ person is not employed stays revoked.
 | `outpost.django.idcard.tasks.Card:google_push` | Push one card's current data to Google |
 | `outpost.django.idcard.tasks.Card:synchronize` | Revoke cards of people no longer employed, push every card whose content changed to Google and Apple |
 
-Schedule `Card:synchronize` nightly with a periodic task in the admin. Apple
+"Re-push Google pass" queues `Card:google_push` on the `maintainance` queue,
+so a worker must consume it. Schedule `Card:synchronize` nightly with a
+periodic task in the admin. Apple
 pushes go to the APNs production environment with the Pass Type ID certificate,
 so the server needs outbound HTTPS to `api.push.apple.com`.
 
