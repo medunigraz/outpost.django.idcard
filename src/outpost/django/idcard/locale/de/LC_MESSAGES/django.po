@@ -115,3 +115,10 @@ msgstr "%i Ausweise reaktiviert. Ausweise von nicht mehr Beschäftigten bleiben 
 
 msgid "Reactivate card"
 msgstr "Ausweis reaktivieren"
+
+msgid "This link has expired. Scan the QR code on your computer again."
+msgstr "Dieser Link ist abgelaufen. Scannen Sie den QR-Code auf Ihrem Computer erneut."
+
+#, python-format
+msgid "No login needed on the phone. The code is valid for %(minutes)s minutes."
+msgstr "Am Smartphone ist keine Anmeldung nötig. Der Code ist %(minutes)s Minuten gültig."

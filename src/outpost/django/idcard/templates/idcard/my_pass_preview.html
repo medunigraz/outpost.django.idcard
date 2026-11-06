@@ -120,18 +120,18 @@
     {% get_current_language as LANGUAGE_CODE %}
     <div class="wallet-buttons{% if device == 'android' %} wallet-buttons-android{% endif %}">
         {% if LANGUAGE_CODE|slice:":2" == "de" %}
-        <a href="{% url 'idcard:apple-pass' %}" class="wallet-badge"><img src="{% static 'idcard/apple-wallet-de.svg' %}" alt="{% trans 'Add to Apple Wallet' %}"></a>
-        <a href="{% url 'idcard:google-pass' %}" class="wallet-badge wallet-badge-google"><img src="{% static 'idcard/google-wallet-de.svg' %}" alt="{% trans 'Add to Google Wallet' %}"></a>
+        <a href="{{ apple_url }}" class="wallet-badge"><img src="{% static 'idcard/apple-wallet-de.svg' %}" alt="{% trans 'Add to Apple Wallet' %}"></a>
+        <a href="{{ google_url }}" class="wallet-badge wallet-badge-google"><img src="{% static 'idcard/google-wallet-de.svg' %}" alt="{% trans 'Add to Google Wallet' %}"></a>
         {% else %}
-        <a href="{% url 'idcard:apple-pass' %}" class="wallet-badge"><img src="{% static 'idcard/apple-wallet-en.svg' %}" alt="{% trans 'Add to Apple Wallet' %}"></a>
-        <a href="{% url 'idcard:google-pass' %}" class="wallet-badge wallet-badge-google"><img src="{% static 'idcard/google-wallet-en.svg' %}" alt="{% trans 'Add to Google Wallet' %}"></a>
+        <a href="{{ apple_url }}" class="wallet-badge"><img src="{% static 'idcard/apple-wallet-en.svg' %}" alt="{% trans 'Add to Apple Wallet' %}"></a>
+        <a href="{{ google_url }}" class="wallet-badge wallet-badge-google"><img src="{% static 'idcard/google-wallet-en.svg' %}" alt="{% trans 'Add to Google Wallet' %}"></a>
         {% endif %}
     </div>
 
     {% if qr_data_uri %}
     <div class="qr-row">
         <img src="{{ qr_data_uri }}" alt="{% trans 'QR code to open this page on your phone' %}">
-        <p class="qr-caption">{% trans "Scan with your phone's camera" %}</p>
+        <p class="qr-caption">{% trans "Scan with your phone's camera" %}<br>{% blocktrans with minutes=handoff_minutes %}No login needed on the phone. The code is valid for {{ minutes }} minutes.{% endblocktrans %}</p>
     </div>
     {% endif %}
 </section>

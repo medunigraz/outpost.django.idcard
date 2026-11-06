@@ -13,6 +13,7 @@ class IDCardAppConf(AppConf):
     GOOGLE_ISSUER_ID = "3388000000023162641"
     GOOGLE_SERVICE_ACCOUNT = None
     GOOGLE_IMAGE_URL = ""
+    HANDOFF_MAX_AGE = 600
 
     class Meta:
         prefix = "idcard"

@@ -88,6 +88,7 @@ paths.
 | `IDCARD_GOOGLE_ISSUER_ID` | Numeric issuer ID from the Business Console | `3388000000023162641` |
 | `IDCARD_GOOGLE_SERVICE_ACCOUNT` | The service-account JSON key, as a dict | required |
 | `IDCARD_GOOGLE_IMAGE_URL` | Public URL of this app's static `idcard/` folder, e.g. `https://api-test.medunigraz.at/static/idcard/` | empty |
+| `IDCARD_HANDOFF_MAX_AGE` | Seconds the desktop QR code stays valid on the phone | `600` |
 
 The service account's `client_email` must be granted access to the issuer in
 the Wallet Business Console. The same key both authorises the REST calls and
@@ -107,6 +108,7 @@ are uploaded as private images.
 | `/idcard/my-pass/` | The employee's own card | Any employee |
 | `/idcard/my-pass/apple/` | Download their own `.pkpass` | Any employee |
 | `/idcard/my-pass/google/` | Redirect to their own Google save link | Any employee |
+| `/idcard/my-pass/phone/<token>/` (and `apple/`, `google/`) | The same card on a phone, opened from the QR code on the desktop page | Anyone holding a token younger than `IDCARD_HANDOFF_MAX_AGE` |
 | `/idcard/wallet/v1/...` | Apple pass web service (register, unregister, changed serials, latest pass, log) | Apple Wallet, authenticated per pass |
 | `/v1/idcard/card/` | Cards as JSON, `?expand=person` for the CAMPUSonline data | Own card; all with `idcard.view_employeecard` |
 
@@ -115,6 +117,11 @@ All cards are listed in the Django admin. Its actions "Download Apple pass",
 `idcard.manage_passes` permission, which an admin grants to a hand-made group.
 Revoke and reactivate run immediately, without a Celery worker. A card whose
 person is not employed stays revoked.
+
+The desktop page shows a QR code instead of the wallet buttons. It carries a
+signed token for the card, so the phone needs no login. The token expires after
+`IDCARD_HANDOFF_MAX_AGE` and only ever opens the card of the person who was
+signed in on the desktop.
 
 ## Tasks
 

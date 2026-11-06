@@ -10,6 +10,7 @@ from datetime import (
 
 import qrcode
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core import signing
 from django.db.models import Max
 from django.http import (
     Http404,
@@ -31,6 +32,7 @@ from django.utils.http import (
     http_date,
     parse_http_date_safe,
 )
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.vary import vary_on_headers
 from django.views.generic import (
@@ -46,6 +48,8 @@ from . import (
 from .conf import settings
 
 logger = logging.getLogger(__name__)
+
+HANDOFF_SALT = "idcard.handoff"
 
 _IOS_RE = re.compile(r"iPhone|iPad|iPod", re.IGNORECASE)
 _ANDROID_RE = re.compile(r"Android", re.IGNORECASE)
@@ -101,6 +105,39 @@ class EmployeeCardMixin(LoginRequiredMixin):
         return card
 
 
+class HandoffMixin:
+    """The card a desktop page's QR code hands to a phone, without a login there.
+
+    The signed token carries the card and expires after IDCARD_HANDOFF_MAX_AGE
+    seconds, so a photographed code is useless soon after.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        try:
+            pk = signing.loads(
+                kwargs["token"],
+                salt=HANDOFF_SALT,
+                max_age=settings.IDCARD_HANDOFF_MAX_AGE,
+            )
+        except signing.BadSignature:
+            with translation.override(translation.get_language_from_request(request)):
+                return render(
+                    request,
+                    "idcard/error.html",
+                    {
+                        "error_message": _(
+                            "This link has expired. Scan the QR code on your computer again."
+                        )
+                    },
+                    status=410,
+                )
+        self.card = get_object_or_404(models.EmployeeCard, pk=pk, person__employed=True)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_card(self):
+        return self.card
+
+
 @method_decorator(vary_on_headers("User-Agent", "Accept-Language"), name="dispatch")
 class MyPassView(LoginRequiredMixin, TemplateView):
     template_name = "idcard/my_pass_preview.html"
@@ -145,13 +182,41 @@ class MyPassView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         device = _detect_device(self.request.META.get("HTTP_USER_AGENT", ""))
-        page_url = self.request.build_absolute_uri(reverse("idcard:my-pass"))
         context["device"] = device
-        context["qr_data_uri"] = _qr_data_uri(page_url) if device == "desktop" else None
+        context["apple_url"] = reverse("idcard:apple-pass")
+        context["google_url"] = reverse("idcard:google-pass")
+        if device == "desktop":
+            token = signing.dumps(kwargs["employee_card"].pk, salt=HANDOFF_SALT)
+            handoff = reverse("idcard:handoff", args=[token])
+            context["qr_data_uri"] = _qr_data_uri(
+                self.request.build_absolute_uri(handoff)
+            )
+            context["handoff_minutes"] = settings.IDCARD_HANDOFF_MAX_AGE // 60
         return context
 
 
-class ApplePassView(EmployeeCardMixin, View):
+@method_decorator(vary_on_headers("User-Agent", "Accept-Language"), name="dispatch")
+class HandoffView(HandoffMixin, TemplateView):
+    """The card page on the phone, opened from the desktop QR code."""
+
+    template_name = "idcard/my_pass_preview.html"
+
+    def get(self, request, token):
+        with translation.override(translation.get_language_from_request(request)):
+            return self.render_to_response(
+                {
+                    "employee_card": self.card,
+                    "person": self.card.person,
+                    "device": _detect_device(request.META.get("HTTP_USER_AGENT", "")),
+                    "apple_url": reverse("idcard:handoff-apple", args=[token]),
+                    "google_url": reverse("idcard:handoff-google", args=[token]),
+                }
+            ).render()
+
+
+class ApplePass(View):
+    """Serves get_card()'s .pkpass; the subclass decides whose card that is."""
+
     def get(self, request, *args, **kwargs):
         card = self.get_card()
         try:
@@ -177,7 +242,17 @@ class ApplePassView(EmployeeCardMixin, View):
         return response
 
 
-class GooglePassView(EmployeeCardMixin, View):
+class ApplePassView(EmployeeCardMixin, ApplePass):
+    pass
+
+
+class HandoffApplePassView(HandoffMixin, ApplePass):
+    pass
+
+
+class GooglePass(View):
+    """Redirects to get_card()'s save link; the subclass decides whose card that is."""
+
     def get(self, request, *args, **kwargs):
         missing = utils.google_missing_settings()
         if missing:
@@ -207,6 +282,14 @@ class GooglePassView(EmployeeCardMixin, View):
                 status=500,
             )
         return HttpResponseRedirect(save_url)
+
+
+class GooglePassView(EmployeeCardMixin, GooglePass):
+    pass
+
+
+class HandoffGooglePassView(HandoffMixin, GooglePass):
+    pass
 
 
 # Apple's pass web service, called by Wallet itself:
